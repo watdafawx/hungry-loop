@@ -109,7 +109,7 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
         }
         String barText = data.canGrow()
                 ? data.storedXp() + " / " + data.nextSlotCost() + " XP levels"
-                : (data.canRaiseCap(24) ? "Feed a Nether Star to widen" : "Fully fed");
+                : (data.canRaiseCap() ? "Feed a Nether Star to widen" : "Fully fed");
         g.drawCenteredString(font, barText, x + imageWidth / 2, y + xpBarY - 1, 0xFFFFFFFF);
 
         // feed button
@@ -158,23 +158,59 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
         g.fill(x + 1, y + 1, x + 2, y + h - 1, base);
     }
 
+    /** Which locked slot (index) the mouse is over, or -1. */
+    private int hoveredLockedSlot(double mouseX, double mouseY) {
+        LoopContents data = menu.loopData();
+        for (int i = menu.loopSlotCount(); i < data.slotCap(); i++) {
+            int sx = leftPos + HungryLoopMenu.loopSlotX(i);
+            int sy = topPos + HungryLoopMenu.loopSlotY(i);
+            if (mouseX >= sx && mouseX < sx + 16 && mouseY >= sy && mouseY < sy + 16) return i;
+        }
+        return -1;
+    }
+
+    private void send(int buttonId) {
+        if (minecraft != null && minecraft.gameMode != null) {
+            minecraft.gameMode.handleInventoryButtonClick(menu.containerId, buttonId);
+            minecraft.getSoundManager().play(net.minecraft.client.resources.sounds.SimpleSoundInstance
+                    .forUI(SoundEvents.EXPERIENCE_ORB_PICKUP, 1.2f));
+        }
+    }
+
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (button == 0
-                && mouseX >= feedX && mouseX < feedX + feedW && mouseY >= feedY && mouseY < feedY + feedH) {
-            int id = Screen.hasShiftDown() ? HungryLoopMenu.BUTTON_FEED_ALL : HungryLoopMenu.BUTTON_FEED_ONE;
-            if (minecraft != null && minecraft.gameMode != null) {
-                minecraft.gameMode.handleInventoryButtonClick(menu.containerId, id);
-                minecraft.getSoundManager().play(net.minecraft.client.resources.sounds.SimpleSoundInstance
-                        .forUI(SoundEvents.EXPERIENCE_ORB_PICKUP, 1.2f));
+        if (button == 0) {
+            if (mouseX >= feedX && mouseX < feedX + feedW && mouseY >= feedY && mouseY < feedY + feedH) {
+                boolean star = menu.getCarried().is(net.minecraft.world.item.Items.NETHER_STAR);
+                send(star ? HungryLoopMenu.BUTTON_STAR
+                        : Screen.hasShiftDown() ? HungryLoopMenu.BUTTON_FEED_ALL : HungryLoopMenu.BUTTON_FEED_ONE);
+                return true;
             }
-            return true;
+            int locked = hoveredLockedSlot(mouseX, mouseY);
+            if (locked >= 0) {
+                send(HungryLoopMenu.BUTTON_SLOT_BASE + locked);
+                return true;
+            }
         }
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
     @Override
     protected void renderTooltip(GuiGraphics g, int mouseX, int mouseY) {
+        LoopContents data = menu.loopData();
+
+        int locked = hoveredLockedSlot(mouseX, mouseY);
+        if (locked >= 0) {
+            int cost = data.costToReach(locked + 1);
+            g.renderComponentTooltip(font, java.util.List.of(
+                    Component.translatable("hungryloop.slot.locked", locked + 1).withStyle(ChatFormatting.GOLD),
+                    Component.translatable("hungryloop.slot.cost", cost).withStyle(
+                            menu.playerXpLevels() >= cost ? ChatFormatting.GREEN : ChatFormatting.RED),
+                    Component.translatable("hungryloop.slot.click").withStyle(ChatFormatting.DARK_GRAY)
+            ), mouseX, mouseY);
+            return;
+        }
+
         if (mouseX >= feedX && mouseX < feedX + feedW && mouseY >= feedY && mouseY < feedY + feedH) {
             g.renderComponentTooltip(font, java.util.List.of(
                     Component.translatable("hungryloop.feed.click").withStyle(ChatFormatting.GREEN),

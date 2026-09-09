@@ -107,7 +107,12 @@ So the loop **grants real Curios slots** and mirrors its contents into them.
 - [x] Cap: 12 by default (`LoopContents.slotCap`), raised by feeding Nether Stars from the cursor
       at the Feed button — `Config.SLOTS_PER_STAR` (2) each, up to `Config.ABSOLUTE_MAX_SLOTS` (20)
 - [x] Shift-click Feed feeds every XP level you have (was: only enough for one slot)
-- [x] Config (COMMON): `slotsPerStar`, `absoluteMaxSlots`
+- [x] Config (SERVER, live-reload + synced): `normalMaxSlots` (12), `shinyMaxSlots` (20),
+      `slotsPerStar` (2), `absoluteMaxSlots` (24). Cap is derived live so a config change hits
+      existing loops (`LoopContents.capBonus` stores only the star bonus).
+- [x] Click a locked slot to unlock it; hover shows the cumulative XP-level cost
+- [x] Shift-scroll cycles the passthrough item on a held **or equipped** loop; hotbar overlay
+      message shows the new selection
 - [x] Consume player XP levels, bank partial progress in `storedXp`, grow `bonusSlots`, level-up
       sound, reopen menu to show new slots
 - [x] Progress persists on the stack (component); loop is `stacksTo(1)`
@@ -131,7 +136,9 @@ So the loop **grants real Curios slots** and mirrors its contents into them.
       parent behind it, or a widget layer)
 - [ ] Keybind under a "The Hungry Loop" category + a C→S open packet (open without a GUI already up)
 - [ ] Slot rendering shows each sub-slot's resolved type (ring/amulet/etc. background icon)
-- [ ] Rich tooltip on the item: drag items in/out **through the tooltip**
+- [x] Rich tooltip: each contained item's own tooltip (name, affixes, attributes, gem sockets),
+      indented + paginated; scroll over the loop in a GUI to change page (`HungryLoopTooltip`)
+- [ ] Drag items in/out **through the tooltip** (still just the menu)
 - [x] "Feed XP" button + `stored / cost XP levels` readout in the screen
 - [x] Shiny loops visually distinct (aqua bevel + badge colour)
 - [x] GUI: sub-slots trace a **snake constellation** (serpentine + undulation); faint Bresenham

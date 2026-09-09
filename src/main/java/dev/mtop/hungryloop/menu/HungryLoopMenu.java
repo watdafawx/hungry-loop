@@ -147,9 +147,14 @@ public class HungryLoopMenu extends AbstractContainerMenu {
         return locator.resolve(who).getItem() instanceof HungryLoopItem;
     }
 
+    public static final int BUTTON_STAR = 2;
+    /** Buttons {@code >= BUTTON_SLOT_BASE}: click the locked slot at (id - base) to unlock up to it. */
+    public static final int BUTTON_SLOT_BASE = 100;
+
     /**
-     * Button 0: if the cursor holds Nether Stars, spend one to raise the slot cap; otherwise feed
-     * one XP level. Button 1 (shift): feed every XP level you have.
+     * Button 0: feed one XP level. Button 1: feed every XP level you have. Button 2: spend one
+     * Nether Star from the cursor to raise the cap. Button {@code 100 + k}: feed enough XP to reach
+     * {@code k + 1} total slots (click a locked slot).
      */
     @Override
     public boolean clickMenuButton(Player who, int buttonId) {
@@ -159,13 +164,13 @@ public class HungryLoopMenu extends AbstractContainerMenu {
         if (!(loop.getItem() instanceof HungryLoopItem)) return false;
 
         LoopContents data = loop.getOrDefault(ModDataComponents.LOOP_CONTENTS.get(), LoopContents.DEFAULT);
-        int absoluteMax = dev.mtop.hungryloop.Config.ABSOLUTE_MAX_SLOTS.get();
 
-        ItemStack carried = getCarried();
-        if (buttonId == 0 && carried.is(net.minecraft.world.item.Items.NETHER_STAR) && data.canRaiseCap(absoluteMax)) {
+        if (buttonId == BUTTON_STAR) {
+            ItemStack carried = getCarried();
+            if (!carried.is(net.minecraft.world.item.Items.NETHER_STAR) || !data.canRaiseCap()) return false;
             carried.shrink(1);
-            LoopContents raised = data.raiseCap(dev.mtop.hungryloop.Config.SLOTS_PER_STAR.get(), absoluteMax);
-            loop.set(ModDataComponents.LOOP_CONTENTS.get(), raised);
+            loop.set(ModDataComponents.LOOP_CONTENTS.get(),
+                    data.withCapBonus(data.capBonus() + dev.mtop.hungryloop.Config.slotsPerStar()));
             who.level().playSound(null, who.blockPosition(), net.minecraft.sounds.SoundEvents.RESPAWN_ANCHOR_CHARGE,
                     net.minecraft.sounds.SoundSource.PLAYERS, 0.5f, 1.6f);
             broadcastChanges();
@@ -174,7 +179,15 @@ public class HungryLoopMenu extends AbstractContainerMenu {
 
         if (!data.canGrow() || who.experienceLevel <= 0) return false;
 
-        int feed = buttonId == 1 ? who.experienceLevel : 1;
+        int feed;
+        if (buttonId >= BUTTON_SLOT_BASE) {
+            int target = buttonId - BUTTON_SLOT_BASE + 1; // total slot count to reach
+            feed = Math.min(who.experienceLevel, data.costToReach(target));
+        } else {
+            feed = buttonId == 1 ? who.experienceLevel : 1;
+        }
+        if (feed <= 0) return false;
+
         who.giveExperienceLevels(-feed);
         LoopContents fed = data.feed(feed);
         loop.set(ModDataComponents.LOOP_CONTENTS.get(), fed);

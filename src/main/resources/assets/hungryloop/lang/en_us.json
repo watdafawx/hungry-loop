@@ -12,6 +12,7 @@
   "hungryloop.tooltip.max_slots": "Fully fed — no more slots can be added",
   "hungryloop.tooltip.contents": "Holds:",
   "hungryloop.tooltip.empty": "Empty",
+  "hungryloop.tooltip.page": "Page %s / %s — scroll over the loop for more",
 
   "hungryloop.screen.title": "The Hungry Loop",
   "hungryloop.screen.feed": "Feed XP",
@@ -20,6 +21,13 @@
   "hungryloop.feed.shift": "Shift-click: feed every XP level you have",
   "hungryloop.feed.star": "Click holding a Nether Star: widen the loop's cap",
   "hungryloop.feed.have": "You have %s levels",
+
+  "hungryloop.slot.locked": "Slot %s — locked",
+  "hungryloop.slot.cost": "%s XP levels to unlock",
+  "hungryloop.slot.click": "Click to unlock",
+
+  "hungryloop.overlay.loop": "The Hungry Loop",
+  "hungryloop.overlay.selected": "▸ %s",
 
   "key.categories.hungryloop": "The Hungry Loop",
   "key.hungryloop.open": "Open the Hungry Loop",

@@ -34,7 +34,7 @@ public class HungryLoop {
     public static final String ARTIFACTS = "artifacts";
 
     public HungryLoop(IEventBus modBus, ModContainer container) {
-        container.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
+        container.registerConfig(ModConfig.Type.SERVER, Config.SPEC);
 
         ModItems.REGISTER.register(modBus);
         ModCreativeTabs.REGISTER.register(modBus);

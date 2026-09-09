@@ -40,14 +40,15 @@ public final class ModNetwork {
     private static void onCycle(CycleLoopPayload payload, IPayloadContext context) {
         if (!(context.player() instanceof ServerPlayer player)) return;
 
-        for (InteractionHand hand : InteractionHand.values()) {
-            ItemStack held = player.getItemInHand(hand);
-            if (held.getItem() instanceof HungryLoopItem) {
-                LoopContents data = held.getOrDefault(ModDataComponents.LOOP_CONTENTS.get(), LoopContents.DEFAULT);
-                held.set(ModDataComponents.LOOP_CONTENTS.get(), data.cycleSelected(payload.direction()));
-                return;
-            }
-        }
+        LoopLocator locator = findLoop(player);
+        if (locator == null) return;
+
+        ItemStack loop = locator.resolve(player);
+        if (!(loop.getItem() instanceof HungryLoopItem)) return;
+
+        LoopContents data = loop.getOrDefault(ModDataComponents.LOOP_CONTENTS.get(), LoopContents.DEFAULT);
+        loop.set(ModDataComponents.LOOP_CONTENTS.get(), data.cycleSelected(payload.direction()));
+        locator.afterChange(player, loop); // re-seat so a curio-slot loop re-syncs
     }
 
     /** First loop found on the player: hand, then inventory, then a curio slot. */

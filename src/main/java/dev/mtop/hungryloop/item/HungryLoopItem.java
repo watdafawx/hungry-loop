@@ -135,13 +135,10 @@ public class HungryLoopItem extends Item {
 
         if (used == 0) {
             tooltip.add(Component.translatable("hungryloop.tooltip.empty").withStyle(ChatFormatting.DARK_GRAY));
-        } else {
-            tooltip.add(Component.translatable("hungryloop.tooltip.contents").withStyle(ChatFormatting.GRAY));
-            for (ItemStack contained : data.items()) {
-                if (contained.isEmpty()) continue;
-                tooltip.add(Component.literal("  ").append(contained.getHoverName()).withStyle(ChatFormatting.DARK_GRAY));
-            }
         }
+        // The detailed contents (names, affixes, attributes, gems, paginated) are appended
+        // client-side by client.HungryLoopTooltip - it has the tooltip context this method lacks
+        // and must never run on a dedicated server.
     }
 
     @Override

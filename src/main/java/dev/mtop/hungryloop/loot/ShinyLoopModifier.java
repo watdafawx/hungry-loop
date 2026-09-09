@@ -68,7 +68,7 @@ public class ShinyLoopModifier extends LootModifier {
 
         ItemStack loop = new ItemStack(ModItems.HUNGRY_LOOP.get());
         loop.set(ModDataComponents.LOOP_CONTENTS.get(),
-                new LoopContents(base, 0, LoopContents.DEFAULT_CAP, true, 0, List.of(), LoopContents.LOOP_MODE));
+                new LoopContents(base, 0, 0, true, 0, List.of(), LoopContents.LOOP_MODE));
 
         generatedLoot.add(loop);
         return generatedLoot;

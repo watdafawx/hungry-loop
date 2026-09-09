@@ -2,9 +2,9 @@ package dev.mtop.hungryloop.component;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import dev.mtop.hungryloop.Config;
 import net.minecraft.core.NonNullList;
 import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.world.item.ItemStack;
 
@@ -14,32 +14,32 @@ import java.util.List;
 /**
  * The entire state of a Hungry Loop, stored as a data component on the stack.
  *
- * @param baseSlots  slots the loop was forged with - 4 normally, 4-8 for a shiny loot loop.
+ * @param baseSlots  slots the loop was forged with - 4 normally, up to 8 for a shiny loot loop.
  * @param bonusSlots slots bought with experience.
- * @param slotCap    the most slots this loop can reach - {@link #DEFAULT_CAP} normally, raised by
- *                   feeding it Nether Stars (config: {@code slotsPerStar}, {@code absoluteMaxSlots}).
- * @param shiny      loot-forged variant (visual + higher base slot count).
+ * @param capBonus   extra cap earned by feeding Nether Stars ({@code slotsPerStar} each). The actual
+ *                   cap is {@code min(typeMax + capBonus, absoluteMax)} with all three from config,
+ *                   read live so a config change takes effect on existing loops.
+ * @param shiny      loot-forged variant (visual + higher base slot count + higher default cap).
  * @param storedXp   experience points banked toward the next slot.
  * @param items      contained curios, one per occupied sub-slot, in slot order.
  * @param selected   passthrough selection: {@code -1} = the loop acts as itself; {@code >= 0}
  *                   indexes {@link #items}. Shift-scroll cycles it.
  */
-public record LoopContents(int baseSlots, int bonusSlots, int slotCap, boolean shiny, int storedXp,
+public record LoopContents(int baseSlots, int bonusSlots, int capBonus, boolean shiny, int storedXp,
                            List<ItemStack> items, int selected) {
 
     public static final int MIN_BASE_SLOTS = 4;
     public static final int MAX_SHINY_BASE_SLOTS = 8;
-    public static final int DEFAULT_CAP = 12;
 
     public static final int LOOP_MODE = -1;
 
     public static final LoopContents DEFAULT =
-            new LoopContents(MIN_BASE_SLOTS, 0, DEFAULT_CAP, false, 0, List.of(), LOOP_MODE);
+            new LoopContents(MIN_BASE_SLOTS, 0, 0, false, 0, List.of(), LOOP_MODE);
 
     public static final Codec<LoopContents> CODEC = RecordCodecBuilder.create(i -> i.group(
             Codec.intRange(MIN_BASE_SLOTS, MAX_SHINY_BASE_SLOTS).fieldOf("base_slots").forGetter(LoopContents::baseSlots),
             Codec.intRange(0, 64).optionalFieldOf("bonus_slots", 0).forGetter(LoopContents::bonusSlots),
-            Codec.intRange(MIN_BASE_SLOTS, 64).optionalFieldOf("slot_cap", DEFAULT_CAP).forGetter(LoopContents::slotCap),
+            Codec.intRange(0, 64).optionalFieldOf("cap_bonus", 0).forGetter(LoopContents::capBonus),
             Codec.BOOL.optionalFieldOf("shiny", false).forGetter(LoopContents::shiny),
             Codec.INT.optionalFieldOf("stored_xp", 0).forGetter(LoopContents::storedXp),
             ItemStack.OPTIONAL_CODEC.listOf().optionalFieldOf("items", List.of()).forGetter(LoopContents::items),
@@ -50,7 +50,7 @@ public record LoopContents(int baseSlots, int bonusSlots, int slotCap, boolean s
             (buf, v) -> {
                 buf.writeVarInt(v.baseSlots);
                 buf.writeVarInt(v.bonusSlots);
-                buf.writeVarInt(v.slotCap);
+                buf.writeVarInt(v.capBonus);
                 buf.writeBoolean(v.shiny);
                 buf.writeVarInt(v.storedXp);
                 ItemStack.OPTIONAL_LIST_STREAM_CODEC.encode(buf, v.items);
@@ -65,16 +65,21 @@ public record LoopContents(int baseSlots, int bonusSlots, int slotCap, boolean s
                     ItemStack.OPTIONAL_LIST_STREAM_CODEC.decode(buf),
                     buf.readVarInt()));
 
+    /** Live from config: {@code min(typeMax + capBonus, absoluteMax)}. */
+    public int slotCap() {
+        return Config.slotCap(shiny, capBonus);
+    }
+
     public int totalSlots() {
-        return Math.min(baseSlots + bonusSlots, slotCap);
+        return Math.min(baseSlots + bonusSlots, slotCap());
     }
 
     public boolean canGrow() {
-        return totalSlots() < slotCap;
+        return totalSlots() < slotCap();
     }
 
-    public boolean canRaiseCap(int absoluteMax) {
-        return slotCap < absoluteMax;
+    public boolean canRaiseCap() {
+        return slotCap() < Config.absoluteMaxSlots();
     }
 
     public int nextSlotCost() {
@@ -84,6 +89,18 @@ public record LoopContents(int baseSlots, int bonusSlots, int slotCap, boolean s
     public static int slotCost(int baseSlots, int bonusSlots) {
         int have = baseSlots + bonusSlots;
         return (int) Math.round(5 * Math.pow(1.7, have - MIN_BASE_SLOTS)) + 3 * (baseSlots - MIN_BASE_SLOTS);
+    }
+
+    /** Cumulative XP levels to grow from the current size to a given total slot count. */
+    public int costToReach(int targetTotal) {
+        int base = baseSlots;
+        int bonus = bonusSlots;
+        int sum = -storedXp;
+        while (base + bonus < Math.min(targetTotal, slotCap())) {
+            sum += slotCost(base, bonus);
+            bonus++;
+        }
+        return Math.max(0, sum);
     }
 
     public float growthProgress() {
@@ -97,19 +114,19 @@ public record LoopContents(int baseSlots, int bonusSlots, int slotCap, boolean s
         int banked = storedXp + levels;
         int base = baseSlots;
         int bonus = bonusSlots;
+        int cap = slotCap();
 
-        while (base + bonus < slotCap) {
+        while (base + bonus < cap) {
             int cost = slotCost(base, bonus);
             if (banked < cost) break;
             banked -= cost;
             bonus++;
         }
-        return new LoopContents(base, bonus, slotCap, shiny, banked, items, selected);
+        return new LoopContents(base, bonus, capBonus, shiny, banked, items, selected);
     }
 
-    /** Raise the cap by {@code by}, never past {@code absoluteMax}. */
-    public LoopContents raiseCap(int by, int absoluteMax) {
-        return new LoopContents(baseSlots, bonusSlots, Math.min(slotCap + by, absoluteMax),
+    public LoopContents withCapBonus(int newCapBonus) {
+        return new LoopContents(baseSlots, bonusSlots, Math.max(0, newCapBonus),
                 shiny, storedXp, items, selected);
     }
 
@@ -136,11 +153,11 @@ public record LoopContents(int baseSlots, int bonusSlots, int slotCap, boolean s
         }
         List<ItemStack> trimmed = List.copyOf(newItems.subList(0, lastUsed + 1));
         int newSelected = selected >= trimmed.size() ? LOOP_MODE : selected;
-        return new LoopContents(baseSlots, bonusSlots, slotCap, shiny, storedXp, trimmed, newSelected);
+        return new LoopContents(baseSlots, bonusSlots, capBonus, shiny, storedXp, trimmed, newSelected);
     }
 
     public LoopContents withSelected(int newSelected) {
-        return new LoopContents(baseSlots, bonusSlots, slotCap, shiny, storedXp, items, newSelected);
+        return new LoopContents(baseSlots, bonusSlots, capBonus, shiny, storedXp, items, newSelected);
     }
 
     /** Cycle the selection by {@code direction} through: loop mode, then each non-empty item. */

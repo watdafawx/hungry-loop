@@ -2,13 +2,16 @@ package dev.mtop.hungryloop.client;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.mtop.hungryloop.HungryLoop;
+import dev.mtop.hungryloop.component.LoopContents;
 import dev.mtop.hungryloop.item.HungryLoopItem;
 import dev.mtop.hungryloop.net.CycleLoopPayload;
 import dev.mtop.hungryloop.net.OpenLoopPayload;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.item.ItemStack;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -41,13 +44,48 @@ public final class HungryLoopKeys {
     @SubscribeEvent
     static void onScroll(InputEvent.MouseScrollingEvent event) {
         LocalPlayer player = Minecraft.getInstance().player;
-        if (player == null || !player.isShiftKeyDown()) return;
-        if (!(player.getItemInHand(InteractionHand.MAIN_HAND).getItem() instanceof HungryLoopItem)) return;
+        if (player == null) return;
 
         double dy = event.getScrollDeltaY();
         if (dy == 0) return;
 
+        // In an inventory screen, hovering the loop: scroll pages its rich tooltip.
+        if (Minecraft.getInstance().screen instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> acs) {
+            var slot = acs.getSlotUnderMouse();
+            if (slot != null && slot.getItem().getItem() instanceof HungryLoopItem) {
+                TooltipPager.scroll(dy > 0 ? -1 : 1);
+                event.setCanceled(true);
+                return;
+            }
+        }
+
+        if (!player.isShiftKeyDown()) return;
+
+        ItemStack loop = heldOrEquippedLoop(player);
+        if (loop.isEmpty()) return;
+
         event.setCanceled(true);
-        PacketDistributor.sendToServer(new CycleLoopPayload(dy > 0 ? 1 : -1));
+        int direction = dy > 0 ? 1 : -1;
+        PacketDistributor.sendToServer(new CycleLoopPayload(direction));
+
+        // predict the new selection for the hotbar overlay message (server applies it authoritatively)
+        LoopContents next = HungryLoopItem.contentsOf(loop).cycleSelected(direction);
+        Component message = next.loopMode()
+                ? Component.translatable("hungryloop.overlay.loop")
+                : Component.translatable("hungryloop.overlay.selected", next.selectedStack().getHoverName());
+        Minecraft.getInstance().gui.setOverlayMessage(message, false);
+    }
+
+    /** The loop in the player's main hand, else the first one equipped in a curio slot. */
+    private static ItemStack heldOrEquippedLoop(LocalPlayer player) {
+        for (InteractionHand hand : InteractionHand.values()) {
+            if (player.getItemInHand(hand).getItem() instanceof HungryLoopItem) {
+                return player.getItemInHand(hand);
+            }
+        }
+        return top.theillusivec4.curios.api.CuriosApi.getCuriosInventory(player)
+                .flatMap(h -> h.findFirstCurio(s -> s.getItem() instanceof HungryLoopItem))
+                .map(r -> r.stack())
+                .orElse(ItemStack.EMPTY);
     }
 }
