@@ -34,7 +34,7 @@ import java.util.Map;
 @EventBusSubscriber(modid = HungryLoop.MODID)
 public final class LoopSlotMirror {
 
-    private static final int SYNC_INTERVAL = 5;
+    private static final int SYNC_INTERVAL = 3;
 
     private LoopSlotMirror() {}
 

@@ -51,20 +51,26 @@ So the loop **grants real Curios slots** and mirrors its contents into them.
 - [x] `HungryLoopCurio.getAttributeModifiers` returns **only** `SlotAttribute` grants — one extra
       slot per contained item, of that item's resolved type. Curios grows/shrinks them with the
       loop's equip state.
-- [x] `LoopSlotMirror` — server tick (every 5t) + on menu close: fills the granted slots with
-      marked mirror copies of the loop's contents; clears them on unequip / slot-modifier update /
+- [x] `LoopSlotMirror` — server tick (every 3t) + on menu close + on Curios-screen rebuild: fills
+      the granted slots with marked mirror copies; clears them on unequip / slot-modifier update /
       login (before Curios can drop them)
-- [x] `CurioSlotMixin` — makes mirror slots read-only in the Curios screen (no dupe by yanking a
-      copy out)
-- [ ] **Hide the granted slots from the Curios screen entirely** (mixin `CuriosContainer` slot
-      build, or client screen render) — right now they're visible-but-locked
+- [x] `CurioSlotMixin` — mirror slots are read-only in the Curios screen (no dupe by yanking a copy)
+- [x] `CuriosContainerMixin` — hides the granted mirror slots from the Curios screen; a `setPage`
+      HEAD inject re-syncs mirrors first so they're hidden on first render
+- [ ] Live-hide when the loop is equipped *while the Curios screen is already open* (rare) — new
+      slots show until reopen; matches how Curios handles other slot-granting items
 - [ ] Verify each: Apotheosis affix abilities, Relics abilities, Artifacts abilities all fire from
       a loop-held item
-- [ ] Handle the grant not being recomputed the instant loop contents change while worn (currently
-      relies on Curios' own stack-change detection + the 5t mirror — can lag a moment)
 - [ ] Contained cosmetics rendering on the body — decide (probably suppress)
 - [ ] Multiple loops, loop-in-loop guard under the new model
-- [x] Right-click opens the menu (hand + in-GUI) — keybind still TODO (Phase 6)
+- [x] Right-click opens the menu (hand + in-GUI, deferred); **keybind** (`H`, rebindable) opens it
+      from anywhere incl. creative inventory (`net.OpenLoopPayload`)
+- [x] **Passthrough select** — shift-scroll on a held loop cycles a selected contained item; the
+      loop's name/tooltip show it and right-click forwards to that item's `use`/`useOn`
+      (`net.CycleLoopPayload`, `LoopContents.selected`). Caveat: items that read the held stack
+      mid-use won't behave perfectly
+- [x] **Relic "+" badge** — one green `+` on the loop when any contained relic has an ability to
+      research or level up (`RegisterItemDecorationsEvent` → `integration/relics/RelicsBadge`)
 
 ## Phase 3 — Apotheosis / affix support
 

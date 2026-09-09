@@ -3,19 +3,21 @@
 
   "itemGroup.hungryloop": "The Hungry Loop",
 
+  "hungryloop.name.passthrough": "The Hungry Loop ▸ %s",
+
   "hungryloop.tooltip.slots": "%s/%s slots",
+  "hungryloop.tooltip.selected": "Acting as: %s  (shift-scroll to change)",
   "hungryloop.tooltip.shiny": "Shiny — forged with %s slots",
   "hungryloop.tooltip.xp_to_next": "%s XP levels to next slot",
   "hungryloop.tooltip.max_slots": "Fully fed — no more slots can be added",
-  "hungryloop.tooltip.open_hint": "Press %s or right-click to open",
   "hungryloop.tooltip.contents": "Holds:",
   "hungryloop.tooltip.empty": "Empty",
 
   "hungryloop.screen.title": "The Hungry Loop",
   "hungryloop.screen.feed": "Feed XP",
 
-  "hungryloop.key.open": "Open the Hungry Loop",
-  "hungryloop.key.category": "The Hungry Loop",
+  "key.categories.hungryloop": "The Hungry Loop",
+  "key.hungryloop.open": "Open the Hungry Loop",
 
   "hungryloop.message.slot_added": "The loop swallows your experience and widens. (%s/%s)",
   "hungryloop.message.not_enough_xp": "The loop hungers for %s more XP levels.",

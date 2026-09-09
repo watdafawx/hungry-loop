@@ -5,8 +5,11 @@ import dev.mtop.hungryloop.component.ModDataComponents;
 import dev.mtop.hungryloop.curio.LoopSlotMirror;
 import dev.mtop.hungryloop.item.HungryLoopItem;
 import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Container;
+import net.minecraft.world.MenuProvider;
 import net.minecraft.world.SimpleContainer;
+import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -144,6 +147,16 @@ public class HungryLoopMenu extends AbstractContainerMenu {
             slot.setChanged();
         }
         return copy;
+    }
+
+    /** Opens the loop menu for {@code player}, resolving the loop via {@code locator} each time. */
+    public static void open(ServerPlayer player, LoopLocator locator) {
+        if (!(locator.resolve(player).getItem() instanceof HungryLoopItem)) return;
+
+        MenuProvider provider = new SimpleMenuProvider(
+                (id, inv, p) -> new HungryLoopMenu(id, inv, locator),
+                locator.resolve(player).getHoverName());
+        player.openMenu(provider, locator::encode);
     }
 
     public int loopSlotCount() {

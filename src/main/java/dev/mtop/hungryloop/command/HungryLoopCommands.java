@@ -83,7 +83,8 @@ public final class HungryLoopCommands {
         int bonus = slots - base;
 
         ItemStack loop = new ItemStack(ModItems.HUNGRY_LOOP.get());
-        loop.set(ModDataComponents.LOOP_CONTENTS.get(), new LoopContents(base, bonus, shiny, 0, List.of()));
+        loop.set(ModDataComponents.LOOP_CONTENTS.get(),
+                new LoopContents(base, bonus, shiny, 0, List.of(), LoopContents.LOOP_MODE));
 
         if (!player.getInventory().add(loop)) {
             player.drop(loop, false);
