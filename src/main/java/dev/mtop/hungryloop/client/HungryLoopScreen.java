@@ -10,11 +10,14 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.Items;
+
+import java.util.List;
 
 /**
- * The loop's screen. The sub-slots trace a snake constellation - a serpentine path with a gentle
- * undulation - and faint lines join every point on the path (occupied and not) so the shape reads
- * even on an empty loop.
+ * The loop's screen. Sub-slots trace a snake constellation; faint lines join every point on the
+ * path (unlocked and locked) so the shape reads even when the loop is empty. Locked slots are
+ * clickable to unlock, with the XP cost drawn beneath them and in a hover tooltip.
  */
 public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
 
@@ -25,7 +28,6 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
     private static final int COPPER_DARK = 0xFF6E3F22;
     private static final int WELL = 0xFF0C0912;
     private static final int WELL_EDGE = 0xFF39303F;
-    private static final int NODE_FUTURE = 0xFF2C2440;
     private static final int LINE_REAL = 0x66C89A6E;
     private static final int LINE_FUTURE = 0x2A8A7FA8;
     private static final int XP_FILL_TOP = 0xFF8FE84A;
@@ -59,7 +61,7 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
         int x = leftPos;
         int y = topPos;
         LoopContents data = menu.loopData();
-        int total = menu.loopSlotCount();
+        int total = menu.unlockedSlots();
         int cap = data.slotCap();
         int accent = data.shiny() ? SHINY : COPPER;
         int accentLight = data.shiny() ? SHINY : COPPER_LIGHT;
@@ -73,29 +75,38 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
         g.drawString(font, count, x + imageWidth - 8 - font.width(count), y + 7,
                 data.shiny() ? SHINY : 0xFFE7C9A6, false);
 
-        // constellation lines through every point on the path
+        // constellation lines
         for (int i = 0; i + 1 < cap; i++) {
             int[] a = HungryLoopMenu.loopSlotCenter(i);
             int[] b = HungryLoopMenu.loopSlotCenter(i + 1);
-            boolean real = i + 1 < total;
-            line(g, x + a[0], y + a[1], x + b[0], y + b[1], real ? LINE_REAL : LINE_FUTURE);
+            line(g, x + a[0], y + a[1], x + b[0], y + b[1], i + 1 < total ? LINE_REAL : LINE_FUTURE);
         }
 
-        // nodes
+        int hovered = hoveredLockedSlot(mouseX, mouseY);
+
         for (int i = 0; i < cap; i++) {
             int sx = x + HungryLoopMenu.loopSlotX(i);
             int sy = y + HungryLoopMenu.loopSlotY(i);
             if (i < total) {
                 well(g, sx, sy, WELL, WELL_EDGE);
             } else {
-                g.fill(sx + 5, sy + 5, sx + 11, sy + 11, NODE_FUTURE);
-                g.drawCenteredString(font, "+", sx + 8, sy + 4, 0xFF433A55);
+                boolean isHover = i == hovered;
+                boolean isNext = i == total;
+                int ring = isHover ? 0xFFE7C9A6 : isNext ? 0xFF7A6E4E : 0xFF3C3450;
+                // dashed ring
+                g.fill(sx + 2, sy, sx + 14, sy + 1, ring);
+                g.fill(sx + 2, sy + 15, sx + 14, sy + 16, ring);
+                g.fill(sx, sy + 2, sx + 1, sy + 14, ring);
+                g.fill(sx + 15, sy + 2, sx + 16, sy + 14, ring);
+                g.drawCenteredString(font, "+", sx + 8, sy + 4, ring);
+                if (isNext || isHover) {
+                    int cost = data.costToReach(i + 1);
+                    boolean afford = menu.playerXpLevels() >= cost;
+                    String c = String.valueOf(cost);
+                    g.drawString(font, c, sx + 8 - font.width(c) / 2, sy + 17,
+                            afford ? 0xFF7FDB3F : 0xFFD05A5A, false);
+                }
             }
-        }
-        // head marker on slot 0
-        if (cap > 0) {
-            int[] h = HungryLoopMenu.loopSlotCenter(0);
-            g.fill(x + h[0] - 1, y + h[1] - 10, x + h[0] + 1, y + h[1] - 8, accent);
         }
 
         // XP bar
@@ -113,19 +124,95 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
         g.drawCenteredString(font, barText, x + imageWidth / 2, y + xpBarY - 1, 0xFFFFFFFF);
 
         // feed button
-        boolean hover = mouseX >= feedX && mouseX < feedX + feedW && mouseY >= feedY && mouseY < feedY + feedH;
+        boolean feedHover = inFeed(mouseX, mouseY);
+        boolean star = menu.getCarried().is(Items.NETHER_STAR);
         g.fill(feedX - 1, feedY - 1, feedX + feedW + 1, feedY + feedH + 1, 0xFF000000);
         g.fillGradient(feedX, feedY, feedX + feedW, feedY + feedH,
-                hover ? 0xFF3A2E22 : 0xFF2A2018, hover ? 0xFF241C14 : 0xFF1C150F);
-        bevel(g, feedX, feedY, feedW, feedH, COPPER, COPPER_LIGHT, COPPER_DARK);
-        g.drawCenteredString(font, "Feed", feedX + feedW / 2, feedY + 4, hover ? 0xFFFFE9C9 : 0xFFE7C9A6);
+                feedHover ? 0xFF3A2E22 : 0xFF2A2018, feedHover ? 0xFF241C14 : 0xFF1C150F);
+        bevel(g, feedX, feedY, feedW, feedH, star ? 0xFFB06CC0 : COPPER,
+                star ? 0xFFD79CE0 : COPPER_LIGHT, COPPER_DARK);
+        g.drawCenteredString(font, star ? "Widen" : "Feed", feedX + feedW / 2, feedY + 4,
+                feedHover ? 0xFFFFE9C9 : 0xFFE7C9A6);
 
         // player inventory wells
-        for (int s = total; s < menu.slots.size(); s++) {
-            Slot slot = menu.slots.get(s);
-            well(g, x + slot.x, y + slot.y, WELL, WELL_EDGE);
+        for (Slot slot : menu.slots) {
+            if (slot.container != menu.contentsContainer()) {
+                well(g, x + slot.x, y + slot.y, WELL, WELL_EDGE);
+            }
         }
     }
+
+    // --- hit testing ---------------------------------------------------------------------------
+
+    private boolean inFeed(double mx, double my) {
+        return mx >= feedX && mx < feedX + feedW && my >= feedY && my < feedY + feedH;
+    }
+
+    private int hoveredLockedSlot(double mouseX, double mouseY) {
+        LoopContents data = menu.loopData();
+        for (int i = menu.unlockedSlots(); i < data.slotCap(); i++) {
+            int sx = leftPos + HungryLoopMenu.loopSlotX(i);
+            int sy = topPos + HungryLoopMenu.loopSlotY(i);
+            if (mouseX >= sx && mouseX < sx + 16 && mouseY >= sy && mouseY < sy + 16) return i;
+        }
+        return -1;
+    }
+
+    private void send(int buttonId) {
+        if (minecraft != null && minecraft.gameMode != null) {
+            minecraft.gameMode.handleInventoryButtonClick(menu.containerId, buttonId);
+            minecraft.getSoundManager().play(net.minecraft.client.resources.sounds.SimpleSoundInstance
+                    .forUI(SoundEvents.EXPERIENCE_ORB_PICKUP, 1.2f));
+        }
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (button == 0) {
+            if (inFeed(mouseX, mouseY)) {
+                boolean star = menu.getCarried().is(Items.NETHER_STAR);
+                send(star ? HungryLoopMenu.BUTTON_STAR
+                        : Screen.hasShiftDown() ? HungryLoopMenu.BUTTON_FEED_ALL : HungryLoopMenu.BUTTON_FEED_ONE);
+                return true;
+            }
+            int locked = hoveredLockedSlot(mouseX, mouseY);
+            if (locked >= 0) {
+                send(HungryLoopMenu.BUTTON_SLOT_BASE + locked);
+                return true;
+            }
+        }
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    protected void renderTooltip(GuiGraphics g, int mouseX, int mouseY) {
+        LoopContents data = menu.loopData();
+
+        int locked = hoveredLockedSlot(mouseX, mouseY);
+        if (locked >= 0) {
+            int cost = data.costToReach(locked + 1);
+            g.renderComponentTooltip(font, List.of(
+                    Component.translatable("hungryloop.slot.locked", locked + 1).withStyle(ChatFormatting.GOLD),
+                    Component.translatable("hungryloop.slot.cost", cost).withStyle(
+                            menu.playerXpLevels() >= cost ? ChatFormatting.GREEN : ChatFormatting.RED),
+                    Component.translatable("hungryloop.slot.click").withStyle(ChatFormatting.DARK_GRAY)
+            ), mouseX, mouseY);
+            return;
+        }
+
+        if (inFeed(mouseX, mouseY)) {
+            g.renderComponentTooltip(font, List.of(
+                    Component.translatable("hungryloop.feed.click").withStyle(ChatFormatting.GREEN),
+                    Component.translatable("hungryloop.feed.shift").withStyle(ChatFormatting.GRAY),
+                    Component.translatable("hungryloop.feed.star").withStyle(ChatFormatting.LIGHT_PURPLE),
+                    Component.translatable("hungryloop.feed.have", menu.playerXpLevels()).withStyle(ChatFormatting.DARK_GRAY)
+            ), mouseX, mouseY);
+            return;
+        }
+        super.renderTooltip(g, mouseX, mouseY);
+    }
+
+    // --- drawing helpers --------------------------------------------------------------------
 
     private static void line(GuiGraphics g, int x1, int y1, int x2, int y2, int color) {
         int dx = Math.abs(x2 - x1);
@@ -156,70 +243,5 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
         g.fill(x + w - 1, y, x + w, y + h, dark);
         g.fill(x + 1, y + 1, x + w - 1, y + 2, base);
         g.fill(x + 1, y + 1, x + 2, y + h - 1, base);
-    }
-
-    /** Which locked slot (index) the mouse is over, or -1. */
-    private int hoveredLockedSlot(double mouseX, double mouseY) {
-        LoopContents data = menu.loopData();
-        for (int i = menu.loopSlotCount(); i < data.slotCap(); i++) {
-            int sx = leftPos + HungryLoopMenu.loopSlotX(i);
-            int sy = topPos + HungryLoopMenu.loopSlotY(i);
-            if (mouseX >= sx && mouseX < sx + 16 && mouseY >= sy && mouseY < sy + 16) return i;
-        }
-        return -1;
-    }
-
-    private void send(int buttonId) {
-        if (minecraft != null && minecraft.gameMode != null) {
-            minecraft.gameMode.handleInventoryButtonClick(menu.containerId, buttonId);
-            minecraft.getSoundManager().play(net.minecraft.client.resources.sounds.SimpleSoundInstance
-                    .forUI(SoundEvents.EXPERIENCE_ORB_PICKUP, 1.2f));
-        }
-    }
-
-    @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (button == 0) {
-            if (mouseX >= feedX && mouseX < feedX + feedW && mouseY >= feedY && mouseY < feedY + feedH) {
-                boolean star = menu.getCarried().is(net.minecraft.world.item.Items.NETHER_STAR);
-                send(star ? HungryLoopMenu.BUTTON_STAR
-                        : Screen.hasShiftDown() ? HungryLoopMenu.BUTTON_FEED_ALL : HungryLoopMenu.BUTTON_FEED_ONE);
-                return true;
-            }
-            int locked = hoveredLockedSlot(mouseX, mouseY);
-            if (locked >= 0) {
-                send(HungryLoopMenu.BUTTON_SLOT_BASE + locked);
-                return true;
-            }
-        }
-        return super.mouseClicked(mouseX, mouseY, button);
-    }
-
-    @Override
-    protected void renderTooltip(GuiGraphics g, int mouseX, int mouseY) {
-        LoopContents data = menu.loopData();
-
-        int locked = hoveredLockedSlot(mouseX, mouseY);
-        if (locked >= 0) {
-            int cost = data.costToReach(locked + 1);
-            g.renderComponentTooltip(font, java.util.List.of(
-                    Component.translatable("hungryloop.slot.locked", locked + 1).withStyle(ChatFormatting.GOLD),
-                    Component.translatable("hungryloop.slot.cost", cost).withStyle(
-                            menu.playerXpLevels() >= cost ? ChatFormatting.GREEN : ChatFormatting.RED),
-                    Component.translatable("hungryloop.slot.click").withStyle(ChatFormatting.DARK_GRAY)
-            ), mouseX, mouseY);
-            return;
-        }
-
-        if (mouseX >= feedX && mouseX < feedX + feedW && mouseY >= feedY && mouseY < feedY + feedH) {
-            g.renderComponentTooltip(font, java.util.List.of(
-                    Component.translatable("hungryloop.feed.click").withStyle(ChatFormatting.GREEN),
-                    Component.translatable("hungryloop.feed.shift").withStyle(ChatFormatting.GRAY),
-                    Component.translatable("hungryloop.feed.star").withStyle(ChatFormatting.LIGHT_PURPLE),
-                    Component.translatable("hungryloop.feed.have", menu.playerXpLevels()).withStyle(ChatFormatting.DARK_GRAY)
-            ), mouseX, mouseY);
-            return;
-        }
-        super.renderTooltip(g, mouseX, mouseY);
     }
 }

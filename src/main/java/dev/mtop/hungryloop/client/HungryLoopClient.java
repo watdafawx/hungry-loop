@@ -12,6 +12,7 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModList;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.IItemDecorator;
+import net.neoforged.neoforge.client.event.RegisterClientTooltipComponentFactoriesEvent;
 import net.neoforged.neoforge.client.event.RegisterItemDecorationsEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
@@ -35,6 +36,11 @@ public final class HungryLoopClient {
     @SubscribeEvent
     static void onRegisterDecorations(RegisterItemDecorationsEvent event) {
         event.register(ModItems.HUNGRY_LOOP.get(), new RelicBadgeDecorator());
+    }
+
+    @SubscribeEvent
+    static void onRegisterTooltips(RegisterClientTooltipComponentFactoriesEvent event) {
+        event.register(dev.mtop.hungryloop.component.LoopContentsTooltip.class, ClientLoopContentsTooltip::new);
     }
 
     /** One "+" over the loop when any contained relic has an ability to research or level up. */

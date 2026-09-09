@@ -142,6 +142,15 @@ public class HungryLoopItem extends Item {
     }
 
     @Override
+    public java.util.Optional<net.minecraft.world.inventory.tooltip.TooltipComponent> getTooltipImage(ItemStack stack) {
+        LoopContents data = contentsOf(stack);
+        List<ItemStack> items = data.items().stream().filter(s -> !s.isEmpty()).toList();
+        return items.isEmpty()
+                ? java.util.Optional.empty()
+                : java.util.Optional.of(new dev.mtop.hungryloop.component.LoopContentsTooltip(items, data.selected()));
+    }
+
+    @Override
     public boolean isFoil(ItemStack stack) {
         return contentsOf(stack).shiny();
     }

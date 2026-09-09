@@ -41,25 +41,26 @@ public final class HungryLoopKeys {
         }
     }
 
+    /** In an inventory screen, scrolling while a loop tooltip is showing pages it. */
+    @SubscribeEvent
+    static void onScreenScroll(net.neoforged.neoforge.client.event.ScreenEvent.MouseScrolled.Pre event) {
+        if (event.getScrollDeltaY() == 0) return;
+        if (!(event.getScreen() instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> acs)) return;
+
+        var slot = acs.getSlotUnderMouse();
+        if (slot == null || !(slot.getItem().getItem() instanceof HungryLoopItem)) return;
+
+        TooltipPager.scroll(event.getScrollDeltaY() > 0 ? -1 : 1);
+        event.setCanceled(true);
+    }
+
     @SubscribeEvent
     static void onScroll(InputEvent.MouseScrollingEvent event) {
         LocalPlayer player = Minecraft.getInstance().player;
-        if (player == null) return;
+        if (player == null || !player.isShiftKeyDown()) return;
 
         double dy = event.getScrollDeltaY();
         if (dy == 0) return;
-
-        // In an inventory screen, hovering the loop: scroll pages its rich tooltip.
-        if (Minecraft.getInstance().screen instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> acs) {
-            var slot = acs.getSlotUnderMouse();
-            if (slot != null && slot.getItem().getItem() instanceof HungryLoopItem) {
-                TooltipPager.scroll(dy > 0 ? -1 : 1);
-                event.setCanceled(true);
-                return;
-            }
-        }
-
-        if (!player.isShiftKeyDown()) return;
 
         ItemStack loop = heldOrEquippedLoop(player);
         if (loop.isEmpty()) return;

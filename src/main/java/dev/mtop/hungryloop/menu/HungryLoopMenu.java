@@ -1,11 +1,14 @@
 package dev.mtop.hungryloop.menu;
 
+import dev.mtop.hungryloop.Config;
 import dev.mtop.hungryloop.component.LoopContents;
 import dev.mtop.hungryloop.component.ModDataComponents;
 import dev.mtop.hungryloop.curio.LoopSlotMirror;
 import dev.mtop.hungryloop.item.HungryLoopItem;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.Container;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.SimpleContainer;
@@ -15,14 +18,25 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import top.theillusivec4.curios.api.CuriosApi;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Menu over one Hungry Loop's sub-slots. The loop is found by {@link LoopLocator}; its
- * {@link LoopContents} component is loaded into a scratch {@link SimpleContainer} on open and written
- * back on every change and on close.
+ * {@link LoopContents} component is the source of truth, loaded into a scratch {@link SimpleContainer}.
+ *
+ * <p>The menu always carries {@link #MAX_LOOP_SLOTS} sub-slots; the ones past the loop's current
+ * total are {@linkplain Slot#isActive() inactive} and drawn as "locked" nodes by the screen. Growing
+ * the loop just flips slots to active - the menu never has to be rebuilt, so opening the screen and
+ * feeding it never moves the cursor.
  */
 public class HungryLoopMenu extends AbstractContainerMenu {
+
+    /** Hard ceiling on sub-slots; matches the highest {@code absoluteMaxSlots} can be. */
+    public static final int MAX_LOOP_SLOTS = 54;
 
     public static final int PANEL_WIDTH = 218;
     public static final int PANEL_HEIGHT = 246;
@@ -30,8 +44,10 @@ public class HungryLoopMenu extends AbstractContainerMenu {
 
     public static final int BUTTON_FEED_ONE = 0;
     public static final int BUTTON_FEED_ALL = 1;
+    public static final int BUTTON_STAR = 2;
+    /** Buttons {@code >= BUTTON_SLOT_BASE}: click the locked slot at (id - base) to unlock up to it. */
+    public static final int BUTTON_SLOT_BASE = 100;
 
-    // Snake-constellation layout: a serpentine path with a gentle undulation.
     private static final int SNAKE_COLS = 6;
     private static final int SNAKE_X0 = 18;
     private static final int SNAKE_DX = 30;
@@ -41,33 +57,57 @@ public class HungryLoopMenu extends AbstractContainerMenu {
     private final Player player;
     private final LoopLocator locator;
     private final SimpleContainer contents;
-    private final int loopSlotCount;
 
-    /** Client-side factory: locator + slot count come over the wire, so the two sides always agree. */
     public HungryLoopMenu(int windowId, Inventory playerInv, RegistryFriendlyByteBuf extraData) {
-        this(windowId, playerInv, LoopLocator.decode(extraData), extraData.readVarInt());
+        this(windowId, playerInv, LoopLocator.decode(extraData));
     }
 
-    HungryLoopMenu(int windowId, Inventory playerInv, LoopLocator locator, int slotCount) {
+    HungryLoopMenu(int windowId, Inventory playerInv, LoopLocator locator) {
         super(ModMenus.HUNGRY_LOOP.get(), windowId);
         this.player = playerInv.player;
         this.locator = locator;
-        this.loopSlotCount = slotCount;
+        this.contents = new SimpleContainer(MAX_LOOP_SLOTS);
 
-        LoopContents data = locator.resolve(player)
-                .getOrDefault(ModDataComponents.LOOP_CONTENTS.get(), LoopContents.DEFAULT);
-        this.contents = new SimpleContainer(loopSlotCount);
-        var slotList = data.toSlotList();
-        for (int i = 0; i < Math.min(loopSlotCount, slotList.size()); i++) {
-            this.contents.setItem(i, slotList.get(i));
+        var slotList = loopData().toSlotList();
+        for (int i = 0; i < Math.min(MAX_LOOP_SLOTS, slotList.size()); i++) {
+            contents.setItem(i, slotList.get(i));
         }
-        this.contents.addListener(c -> persist());
+        contents.addListener(c -> persist());
 
-        addLoopSlots();
+        for (int i = 0; i < MAX_LOOP_SLOTS; i++) {
+            addSlot(new LoopSlot(i));
+        }
         addPlayerSlots(playerInv);
     }
 
-    /** Top-left corner of sub-slot {@code index} along the snake path. */
+    private final class LoopSlot extends Slot {
+        LoopSlot(int index) {
+            super(contents, index, loopSlotX(index), loopSlotY(index));
+        }
+
+        @Override
+        public boolean isActive() {
+            return getContainerSlot() < unlockedSlots();
+        }
+
+        @Override
+        public boolean mayPlace(ItemStack stack) {
+            return isActive() && isEquippableCurio(stack);
+        }
+
+        @Override
+        public boolean mayPickup(Player who) {
+            return isActive();
+        }
+
+        @Override
+        public int getMaxStackSize() {
+            return 1;
+        }
+    }
+
+    // --- snake layout ---------------------------------------------------------------------------
+
     public static int loopSlotX(int index) {
         int row = index / SNAKE_COLS;
         int col = index % SNAKE_COLS;
@@ -80,25 +120,8 @@ public class HungryLoopMenu extends AbstractContainerMenu {
         return SNAKE_Y0 + row * SNAKE_DY + (int) Math.round(Math.sin(index * 0.8) * 3);
     }
 
-    /** Centre point of sub-slot {@code index} (for drawing the constellation lines through it). */
     public static int[] loopSlotCenter(int index) {
         return new int[]{loopSlotX(index) + 8, loopSlotY(index) + 8};
-    }
-
-    private void addLoopSlots() {
-        for (int i = 0; i < loopSlotCount; i++) {
-            addSlot(new Slot(contents, i, loopSlotX(i), loopSlotY(i)) {
-                @Override
-                public boolean mayPlace(ItemStack stack) {
-                    return isEquippableCurio(stack);
-                }
-
-                @Override
-                public int getMaxStackSize() {
-                    return 1;
-                }
-            });
-        }
     }
 
     private void addPlayerSlots(Inventory inv) {
@@ -113,11 +136,25 @@ public class HungryLoopMenu extends AbstractContainerMenu {
         }
     }
 
-    /** A curio we're willing to hold - anything with a Curios capability, except another loop. */
     private static boolean isEquippableCurio(ItemStack stack) {
         return !stack.isEmpty()
                 && !(stack.getItem() instanceof HungryLoopItem)
                 && CuriosApi.getCurio(stack).isPresent();
+    }
+
+    // --- state ---------------------------------------------------------------------------------
+
+    public LoopContents loopData() {
+        return locator.resolve(player).getOrDefault(ModDataComponents.LOOP_CONTENTS.get(), LoopContents.DEFAULT);
+    }
+
+    /** How many sub-slots are unlocked right now (the rest are shown locked). */
+    public int unlockedSlots() {
+        return Math.min(loopData().totalSlots(), MAX_LOOP_SLOTS);
+    }
+
+    public int playerXpLevels() {
+        return player.experienceLevel;
     }
 
     private void persist() {
@@ -127,8 +164,8 @@ public class HungryLoopMenu extends AbstractContainerMenu {
         if (!(loop.getItem() instanceof HungryLoopItem)) return;
 
         LoopContents current = loop.getOrDefault(ModDataComponents.LOOP_CONTENTS.get(), LoopContents.DEFAULT);
-        java.util.List<ItemStack> items = new java.util.ArrayList<>(loopSlotCount);
-        for (int i = 0; i < loopSlotCount; i++) {
+        List<ItemStack> items = new ArrayList<>(MAX_LOOP_SLOTS);
+        for (int i = 0; i < MAX_LOOP_SLOTS; i++) {
             items.add(contents.getItem(i));
         }
         loop.set(ModDataComponents.LOOP_CONTENTS.get(), current.withItems(items));
@@ -139,7 +176,7 @@ public class HungryLoopMenu extends AbstractContainerMenu {
     public void removed(Player who) {
         super.removed(who);
         persist();
-        LoopSlotMirror.syncIfServer(who); // push contents changes into the granted curio slots now
+        LoopSlotMirror.syncIfServer(who);
     }
 
     @Override
@@ -147,15 +184,8 @@ public class HungryLoopMenu extends AbstractContainerMenu {
         return locator.resolve(who).getItem() instanceof HungryLoopItem;
     }
 
-    public static final int BUTTON_STAR = 2;
-    /** Buttons {@code >= BUTTON_SLOT_BASE}: click the locked slot at (id - base) to unlock up to it. */
-    public static final int BUTTON_SLOT_BASE = 100;
+    // --- buttons ------------------------------------------------------------------------------
 
-    /**
-     * Button 0: feed one XP level. Button 1: feed every XP level you have. Button 2: spend one
-     * Nether Star from the cursor to raise the cap. Button {@code 100 + k}: feed enough XP to reach
-     * {@code k + 1} total slots (click a locked slot).
-     */
     @Override
     public boolean clickMenuButton(Player who, int buttonId) {
         if (who.level().isClientSide) return true;
@@ -167,12 +197,12 @@ public class HungryLoopMenu extends AbstractContainerMenu {
 
         if (buttonId == BUTTON_STAR) {
             ItemStack carried = getCarried();
-            if (!carried.is(net.minecraft.world.item.Items.NETHER_STAR) || !data.canRaiseCap()) return false;
+            if (!carried.is(Items.NETHER_STAR) || !data.canRaiseCap()) return false;
             carried.shrink(1);
             loop.set(ModDataComponents.LOOP_CONTENTS.get(),
-                    data.withCapBonus(data.capBonus() + dev.mtop.hungryloop.Config.slotsPerStar()));
-            who.level().playSound(null, who.blockPosition(), net.minecraft.sounds.SoundEvents.RESPAWN_ANCHOR_CHARGE,
-                    net.minecraft.sounds.SoundSource.PLAYERS, 0.5f, 1.6f);
+                    data.withCapBonus(data.capBonus() + Config.slotsPerStar()));
+            who.level().playSound(null, who.blockPosition(), SoundEvents.RESPAWN_ANCHOR_CHARGE,
+                    SoundSource.PLAYERS, 0.5f, 1.6f);
             broadcastChanges();
             return true;
         }
@@ -181,10 +211,9 @@ public class HungryLoopMenu extends AbstractContainerMenu {
 
         int feed;
         if (buttonId >= BUTTON_SLOT_BASE) {
-            int target = buttonId - BUTTON_SLOT_BASE + 1; // total slot count to reach
-            feed = Math.min(who.experienceLevel, data.costToReach(target));
+            feed = Math.min(who.experienceLevel, data.costToReach(buttonId - BUTTON_SLOT_BASE + 1));
         } else {
-            feed = buttonId == 1 ? who.experienceLevel : 1;
+            feed = buttonId == BUTTON_FEED_ALL ? who.experienceLevel : 1;
         }
         if (feed <= 0) return false;
 
@@ -192,38 +221,29 @@ public class HungryLoopMenu extends AbstractContainerMenu {
         LoopContents fed = data.feed(feed);
         loop.set(ModDataComponents.LOOP_CONTENTS.get(), fed);
 
-        if (fed.totalSlots() > data.totalSlots() && who instanceof ServerPlayer sp) {
-            who.level().playSound(null, who.blockPosition(), net.minecraft.sounds.SoundEvents.PLAYER_LEVELUP,
-                    net.minecraft.sounds.SoundSource.PLAYERS, 0.6f, 1.4f);
-            sp.server.execute(() -> open(sp, locator)); // reopen after the tick for the new slots
-        } else {
-            broadcastChanges();
+        if (fed.totalSlots() > data.totalSlots()) {
+            who.level().playSound(null, who.blockPosition(), SoundEvents.PLAYER_LEVELUP,
+                    SoundSource.PLAYERS, 0.6f, 1.4f);
         }
+        broadcastChanges(); // slots flip active on their own - no rebuild
         return true;
     }
 
-    /** Live view of the loop for the screen (client resolves its own synced copy). */
-    public LoopContents loopData() {
-        return locator.resolve(player).getOrDefault(ModDataComponents.LOOP_CONTENTS.get(), LoopContents.DEFAULT);
-    }
-
-    public int playerXpLevels() {
-        return player.experienceLevel;
-    }
+    // --- shift-click --------------------------------------------------------------------------
 
     @Override
     public ItemStack quickMoveStack(Player who, int index) {
         Slot slot = slots.get(index);
-        if (slot == null || !slot.hasItem()) return ItemStack.EMPTY;
+        if (slot == null || !slot.hasItem() || !slot.isActive()) return ItemStack.EMPTY;
 
         ItemStack stack = slot.getItem();
         ItemStack copy = stack.copy();
-        boolean fromLoop = index < loopSlotCount;
+        boolean fromLoop = index < MAX_LOOP_SLOTS;
 
         if (fromLoop) {
-            if (!moveItemStackTo(stack, loopSlotCount, slots.size(), true)) return ItemStack.EMPTY;
+            if (!moveItemStackTo(stack, MAX_LOOP_SLOTS, slots.size(), true)) return ItemStack.EMPTY;
         } else if (isEquippableCurio(stack)) {
-            if (!moveItemStackTo(stack, 0, loopSlotCount, false)) return ItemStack.EMPTY;
+            if (!moveItemStackTo(stack, 0, unlockedSlots(), false)) return ItemStack.EMPTY;
         } else {
             return ItemStack.EMPTY;
         }
@@ -236,23 +256,15 @@ public class HungryLoopMenu extends AbstractContainerMenu {
         return copy;
     }
 
-    /** Opens the loop menu for {@code player}, resolving the loop via {@code locator}. */
+    // --- open ---------------------------------------------------------------------------------
+
     public static void open(ServerPlayer player, LoopLocator locator) {
         ItemStack loop = locator.resolve(player);
         if (!(loop.getItem() instanceof HungryLoopItem)) return;
 
-        int slots = loop.getOrDefault(ModDataComponents.LOOP_CONTENTS.get(), LoopContents.DEFAULT).totalSlots();
         MenuProvider provider = new SimpleMenuProvider(
-                (id, inv, p) -> new HungryLoopMenu(id, inv, locator, slots),
-                loop.getHoverName());
-        player.openMenu(provider, buf -> {
-            locator.encode(buf);
-            buf.writeVarInt(slots);
-        });
-    }
-
-    public int loopSlotCount() {
-        return loopSlotCount;
+                (id, inv, p) -> new HungryLoopMenu(id, inv, locator), loop.getHoverName());
+        player.openMenu(provider, locator::encode);
     }
 
     public Container contentsContainer() {
