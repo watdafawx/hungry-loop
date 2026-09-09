@@ -9,19 +9,30 @@ import top.theillusivec4.curios.common.inventory.CurioSlot;
 import org.spongepowered.asm.mixin.Mixin;
 
 /**
- * Makes the Curios-screen slot for a loop-managed mirror stack read-only, so the player edits loop
- * contents through the loop's own screen and never by reaching into the granted slot. Without this
- * they could pull a mirror copy out and the loop would recreate it next tick - a dupe.
+ * Handles the Curios-screen slots that hold the loop's mirror stacks:
  *
- * <p>{@link CurioSlot} inherits {@code mayPickup}/{@code mayPlace} from {@link SlotItemHandler} and
- * doesn't override them, so the mixin adds the overrides (extending the real superclass to reach
- * {@code super}).
+ * <ul>
+ *   <li>{@code isActive} is false - the slot doesn't render and can't be hovered or clicked. This is
+ *   the actual "hide the granted slots" mechanism; it works wherever the mirror sits, so it doesn't
+ *   depend on the client and server agreeing on slot positions. The container keeps the slot, so
+ *   indices stay in sync.</li>
+ *   <li>{@code mayPickup}/{@code mayPlace} are false too, as a second guard against pulling a mirror
+ *   copy out (which the loop would just recreate - a dupe).</li>
+ * </ul>
+ *
+ * <p>{@link CurioSlot} inherits these from {@link SlotItemHandler} and doesn't override them, so the
+ * mixin adds the overrides (extending the real superclass to reach {@code super}).
  */
 @Mixin(CurioSlot.class)
 public abstract class CurioSlotMixin extends SlotItemHandler {
 
     private CurioSlotMixin(IItemHandler handler, int index, int x, int y) {
         super(handler, index, x, y);
+    }
+
+    @Override
+    public boolean isActive() {
+        return !LoopSlotMirror.isMirror(getItem()) && super.isActive();
     }
 
     @Override
