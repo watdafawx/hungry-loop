@@ -11,9 +11,17 @@ public final class Config {
 
     private static final ModConfigSpec.Builder BUILDER = new ModConfigSpec.Builder();
 
+    public static final ModConfigSpec.IntValue NORMAL_START_SLOTS = BUILDER
+            .comment("Sub-slots a freshly-crafted (normal) loop starts with unlocked.")
+            .defineInRange("normalStartSlots", 4, 1, 54);
+
     public static final ModConfigSpec.IntValue NORMAL_MAX_SLOTS = BUILDER
             .comment("Slot cap for a crafted (normal) loop, before Nether Stars.")
             .defineInRange("normalMaxSlots", 12, 4, 54);
+
+    public static final ModConfigSpec.IntValue SHINY_START_SLOTS = BUILDER
+            .comment("Sub-slots a shiny (loot-found) loop starts with unlocked.")
+            .defineInRange("shinyStartSlots", 8, 1, 54);
 
     public static final ModConfigSpec.IntValue SHINY_MAX_SLOTS = BUILDER
             .comment("Slot cap for a shiny (loot-found) loop, before Nether Stars.")
@@ -66,6 +74,15 @@ public final class Config {
             return LOOP_SLOTS.get();
         } catch (IllegalStateException notLoadedYet) {
             return 2;
+        }
+    }
+
+    /** Sub-slots a brand-new loop of the given kind starts with unlocked. */
+    public static int startSlots(boolean shiny) {
+        try {
+            return (shiny ? SHINY_START_SLOTS : NORMAL_START_SLOTS).get();
+        } catch (IllegalStateException notLoadedYet) {
+            return shiny ? 8 : 4;
         }
     }
 }

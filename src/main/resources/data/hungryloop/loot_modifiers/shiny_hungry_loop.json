@@ -2,8 +2,6 @@
   "type": "hungryloop:shiny_loop",
   "conditions": [],
   "chance": 0.06,
-  "min_base": 6,
-  "max_base": 8,
   "tables": [
     "minecraft:chests/simple_dungeon",
     "minecraft:chests/abandoned_mineshaft",

@@ -54,9 +54,9 @@ public final class HungryLoopCommands {
         event.getDispatcher().register(Commands.literal(HungryLoop.MODID)
                 .requires(source -> source.hasPermission(Commands.LEVEL_GAMEMASTERS))
                 .then(Commands.literal("give")
-                        .executes(ctx -> give(ctx.getSource(), LoopContents.MIN_BASE_SLOTS, false))
+                        .executes(ctx -> give(ctx.getSource(), -1, false))
                         .then(Commands.argument("slots", IntegerArgumentType.integer(
-                                        LoopContents.MIN_BASE_SLOTS, 24))
+                                        LoopContents.MIN_BASE_SLOTS, 54))
                                 .executes(ctx -> give(ctx.getSource(),
                                         IntegerArgumentType.getInteger(ctx, "slots"), false))
                                 .then(Commands.argument("shiny", BoolArgumentType.bool())
@@ -76,9 +76,10 @@ public final class HungryLoopCommands {
                         .executes(ctx -> unlock(ctx.getSource()))));
     }
 
-    private static int give(CommandSourceStack source, int slots, boolean shiny) throws CommandSyntaxException {
+    private static int give(CommandSourceStack source, int requestedSlots, boolean shiny) throws CommandSyntaxException {
         ServerPlayer player = source.getPlayerOrException();
 
+        int slots = requestedSlots >= 0 ? requestedSlots : dev.mtop.hungryloop.Config.startSlots(shiny);
         int base = Math.min(slots, LoopContents.MAX_SHINY_BASE_SLOTS);
         int bonus = slots - base;
         // capBonus 0, then bump it just enough that this many slots fit under the cap
