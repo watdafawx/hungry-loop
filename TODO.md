@@ -52,11 +52,16 @@ So the loop **grants real Curios slots** and mirrors its contents into them.
       slot per contained item, of that item's resolved type. Curios grows/shrinks them with the
       loop's equip state.
 - [x] `LoopSlotMirror` — server tick (every 3t) + on menu close + on Curios-screen rebuild: fills
-      the granted slots with marked mirror copies; clears them on unequip / slot-modifier update /
-      login (before Curios can drop them)
+      the **trailing** granted slots with marked mirror copies (packed at the high indices, matching
+      slots reused so unrelated items don't blip); clears stray mirrors on unequip / slot-modifier
+      update / login
+- [x] `ContentForwarding.resolveSlot` deterministic (sorted candidates) so `getAttributeModifiers`
+      and `LoopSlotMirror` always pick the same slot type for a multi-slot item
 - [x] `CurioSlotMixin` — mirror slots are read-only in the Curios screen (no dupe by yanking a copy)
-- [x] `CuriosContainerMixin` — hides the granted mirror slots from the Curios screen; a `setPage`
-      HEAD inject re-syncs mirrors first so they're hidden on first render
+- [x] `CuriosContainerMixin` — hides the granted mirror slots from the Curios screen by trimming
+      `setPage`'s per-type `getSlots()` (and `getVisibleSlots()` for panel sizing) by the trailing
+      mirror count; a HEAD inject reconciles mirrors first so they're hidden on first render
+      (fresh worlds clean; a pre-fix save needs the loop re-equipped once to drop phantom slots)
 - [ ] Live-hide when the loop is equipped *while the Curios screen is already open* (rare) — new
       slots show until reopen; matches how Curios handles other slot-granting items
 - [ ] Verify each: Apotheosis affix abilities, Relics abilities, Artifacts abilities all fire from
