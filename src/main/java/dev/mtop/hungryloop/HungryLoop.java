@@ -1,5 +1,6 @@
 package dev.mtop.hungryloop;
 
+import dev.mtop.hungryloop.command.HungryLoopCommands;
 import dev.mtop.hungryloop.component.ModDataComponents;
 import dev.mtop.hungryloop.curio.HungryLoopCurio;
 import dev.mtop.hungryloop.menu.ModMenus;
@@ -7,6 +8,7 @@ import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
+import net.neoforged.neoforge.common.NeoForge;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import top.theillusivec4.curios.api.CuriosApi;
@@ -36,6 +38,10 @@ public class HungryLoop {
         ModMenus.REGISTER.register(modBus);
 
         modBus.addListener(this::commonSetup);
+
+        // Hand-registered, not @EventBusSubscriber: the gen command reaches into Apotheosis and
+        // Relics (behind ModList guards) and this keeps that off an eagerly loaded class.
+        NeoForge.EVENT_BUS.register(HungryLoopCommands.class);
 
         LOG.info("The Hungry Loop is listening.");
     }

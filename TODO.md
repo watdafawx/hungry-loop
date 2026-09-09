@@ -82,7 +82,10 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started · `[?]` needs a de
 - [ ] Relics: level/XP on a contained relic still accrues
 - [ ] Artifacts: contained artifacts behave as equipped (Artifacts uses Curios slots already, so
       this should mostly fall out of Phase 2 — verify each artifact type)
-- [ ] Guard every Relics/Artifacts reference behind `ModList.isLoaded` in an `integration/` class
+- [x] `integration/` package established: `apotheosis/ApothLoot`, `relics/RelicsUnlock` — all
+      Apotheosis/Relics symbols confined here, reached only from `ModList`-guarded call sites, no
+      `@EventBusSubscriber`
+- [ ] Guard the rest of the Relics/Artifacts references (ability ticking, slot checks) the same way
 
 ## Phase 5 — XP-fed slot growth
 
@@ -118,15 +121,18 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started · `[?]` needs a de
 
 ## Phase 8 — Test command
 
-- [ ] `/hungryloop gen [count] [affixes] [abilities]` — spawn random curio items:
-  - [ ] pull from all registered curio items (vanilla-slot + Relics + Artifacts + Curios addons)
-  - [ ] roll Apotheosis affixes + gems when Apotheosis is present
-  - [ ] Relics: unlock the relic's abilities (research complete) so they're usable immediately
-  - [ ] doubles as a diagnostic — report each item's resolved slot type + `LootCategory`
-        (mirror foxs-tweaks' `testhotbar`)
+- [x] `/hungryloop gen [count] [sockets]` — fill the inventory with random curio items:
+  - [x] pull from every registered item that fits a Curios slot (covers apothic_compats' curios,
+        Relics, Artifacts, and every Curios addon)
+  - [x] roll Apotheosis affixes + gems when Apotheosis is present (`ApothLoot`, lifted from
+        foxs-tweaks' `ApothicTestGear`)
+  - [x] Relics: unlock every ability's research so it's usable immediately (`RelicsUnlock`)
+  - [x] diagnostic line per item: `name — sub-slot type — loot category — affix/gem note`
+  - [ ] `[?]` option to drop the generated items straight into a loop instead of the inventory
 - [x] `/hungryloop give [slots] [shiny]` — a loop with a chosen slot count / shiny flag
-- [x] op-gated (`LEVEL_GAMEMASTERS`), registered from `RegisterCommandsEvent`
-      (`HungryLoopCommands` — plain `@EventBusSubscriber`, touches no optional-mod types yet)
+- [x] op-gated (`LEVEL_GAMEMASTERS`); `HungryLoopCommands` is **hand-registered** from the mod
+      ctor (not `@EventBusSubscriber`) because `gen` reaches into Apotheosis/Relics behind
+      `ModList` guards — `integration/apotheosis/ApothLoot`, `integration/relics/RelicsUnlock`
 
 ## Phase 9 — Polish & release
 
