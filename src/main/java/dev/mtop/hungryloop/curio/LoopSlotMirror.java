@@ -177,6 +177,26 @@ public final class LoopSlotMirror {
         }
     }
 
+    /**
+     * How many slots of {@code type} the player's worn loops grant right now. The Curios screen hides
+     * exactly this many trailing slots of the type, whether their mirrors have arrived yet or not.
+     */
+    public static int grantedCount(net.minecraft.world.entity.player.Player player, String type) {
+        ICuriosItemHandler handler = CuriosApi.getCuriosInventory(player).orElse(null);
+        if (handler == null) return 0;
+
+        int count = 0;
+        for (ItemStack loop : wornLoops(handler)) {
+            LoopContents data = loop.getOrDefault(ModDataComponents.LOOP_CONTENTS.get(), LoopContents.DEFAULT);
+            for (ItemStack contained : data.items()) {
+                if (!contained.isEmpty() && ContentForwarding.resolveSlot(contained, player).equals(type)) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
     private static List<ItemStack> wornLoops(ICuriosItemHandler handler) {
         List<ItemStack> loops = new ArrayList<>();
         handler.findCurios(stack -> stack.getItem() instanceof HungryLoopItem && !isMirror(stack))

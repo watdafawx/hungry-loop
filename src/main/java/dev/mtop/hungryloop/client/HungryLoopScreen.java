@@ -67,20 +67,27 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
         int accentLight = data.shiny() ? SHINY : COPPER_LIGHT;
         int accentDark = data.shiny() ? 0xFF3C7C8C : COPPER_DARK;
 
+        long time = net.minecraft.Util.getMillis();
+        float breathe = (net.minecraft.util.Mth.sin(time / 1400f) + 1f) / 2f; // 0..1
+
         g.fillGradient(x, y, x + imageWidth, y + imageHeight, PANEL_TOP, PANEL_BOTTOM);
+        drawStarfield(g, x, y, time);
         bevel(g, x, y, imageWidth, imageHeight, accent, accentLight, accentDark);
+        drawBorderSpark(g, x, y, time, accentLight);
         g.fill(x + 6, y + 18, x + imageWidth - 6, y + 19, accentDark);
 
         String count = data.totalSlots() + " / " + cap;
         g.drawString(font, count, x + imageWidth - 8 - font.width(count), y + 7,
                 data.shiny() ? SHINY : 0xFFE7C9A6, false);
 
-        // constellation lines
+        // constellation lines, faintly breathing
+        int lineReal = withAlpha(LINE_REAL, 0x40 + Math.round(breathe * 0x40));
         for (int i = 0; i + 1 < cap; i++) {
             int[] a = HungryLoopMenu.loopSlotCenter(i);
             int[] b = HungryLoopMenu.loopSlotCenter(i + 1);
-            line(g, x + a[0], y + a[1], x + b[0], y + b[1], i + 1 < total ? LINE_REAL : LINE_FUTURE);
+            line(g, x + a[0], y + a[1], x + b[0], y + b[1], i + 1 < total ? lineReal : LINE_FUTURE);
         }
+        drawConstellationPulse(g, x, y, time, Math.max(2, total), data.shiny() ? SHINY : 0xFFFFE7C0);
 
         int hovered = hoveredLockedSlot(mouseX, mouseY);
 
@@ -219,6 +226,57 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
     }
 
     // --- drawing helpers --------------------------------------------------------------------
+
+    // --- animation ------------------------------------------------------------------------------
+
+    private static int withAlpha(int argb, int alpha) {
+        return (Math.min(0xFF, alpha) << 24) | (argb & 0xFFFFFF);
+    }
+
+    /** Faint dots drifting slowly upward, wrapping - a subtle nebula behind the panel. */
+    private void drawStarfield(GuiGraphics g, int x, int y, long time) {
+        int inX = x + 3, inY = y + 20, w = imageWidth - 6, h = HungryLoopMenu.PLAYER_INV_Y - 44;
+        for (int i = 0; i < 22; i++) {
+            int seedX = (int) ((i * 2654435761L >>> 8 & 0xFFFF) % w);
+            float speed = 0.004f + (i % 5) * 0.0015f;
+            int py = (int) (h - ((time * speed + i * 37) % h));
+            int alpha = 0x14 + (i % 3) * 0x0C;
+            g.fill(inX + seedX, inY + py, inX + seedX + 1, inY + py + 1, (alpha << 24) | 0xC9C0E0);
+        }
+    }
+
+    /** A bright point travelling the panel's inner border. */
+    private void drawBorderSpark(GuiGraphics g, int x, int y, long time, int color) {
+        int w = imageWidth - 4, h = imageHeight - 4;
+        int perim = 2 * (w + h);
+        int p = (int) ((time / 6) % perim);
+        int sx, sy;
+        if (p < w) { sx = x + 2 + p; sy = y + 2; }
+        else if (p < w + h) { sx = x + w + 1; sy = y + 2 + (p - w); }
+        else if (p < 2 * w + h) { sx = x + w + 1 - (p - w - h); sy = y + h + 1; }
+        else { sx = x + 2; sy = y + h + 1 - (p - 2 * w - h); }
+        g.fill(sx - 1, sy - 1, sx + 2, sy + 2, withAlpha(color, 0xB0));
+        g.fill(sx, sy, sx + 1, sy + 1, 0xFFFFFFFF);
+    }
+
+    /** A glowing head with a fading tail, running along the unlocked stretch of the constellation. */
+    private void drawConstellationPulse(GuiGraphics g, int x, int y, long time, int nodes, int color) {
+        if (nodes < 2) return;
+        float head = (time % 5000L) / 5000f * (nodes - 1);
+        for (int trail = 0; trail < 5; trail++) {
+            float at = head - trail * 0.45f;
+            if (at < 0) continue;
+            int lo = (int) Math.floor(at);
+            float frac = at - lo;
+            int[] a = HungryLoopMenu.loopSlotCenter(lo);
+            int[] b = HungryLoopMenu.loopSlotCenter(Math.min(lo + 1, nodes - 1));
+            int px = x + Math.round(a[0] + (b[0] - a[0]) * frac);
+            int py = y + Math.round(a[1] + (b[1] - a[1]) * frac);
+            int alpha = 0xC0 - trail * 0x28;
+            int size = trail == 0 ? 2 : 1;
+            g.fill(px - size, py - size, px + size + 1, py + size + 1, withAlpha(color, Math.max(0, alpha)));
+        }
+    }
 
     private static void line(GuiGraphics g, int x1, int y1, int x2, int y2, int color) {
         int dx = Math.abs(x2 - x1);

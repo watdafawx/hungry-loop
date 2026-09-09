@@ -7,6 +7,10 @@
     "CurioSlotMixin",
     "CuriosContainerMixin"
   ],
+  "client": [
+    "CuriosClientPacketsMixin",
+    "ItemRendererMixin"
+  ],
   "injectors": {
     "defaultRequire": 1
   }
