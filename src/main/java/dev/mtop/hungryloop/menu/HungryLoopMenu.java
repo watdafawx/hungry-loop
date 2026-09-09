@@ -11,11 +11,10 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.InteractionHand;
 import top.theillusivec4.curios.api.CuriosApi;
 
 /**
- * Menu over one Hungry Loop's sub-slots. The loop is identified by which hand holds it; its
+ * Menu over one Hungry Loop's sub-slots. The loop is found by {@link LoopLocator}; its
  * {@link LoopContents} component is loaded into a scratch {@link SimpleContainer} on open and written
  * back on every change and on close.
  */
@@ -24,21 +23,21 @@ public class HungryLoopMenu extends AbstractContainerMenu {
     private static final int LOOP_SLOTS_PER_ROW = 6;
 
     private final Player player;
-    private final InteractionHand hand;
+    private final LoopLocator locator;
     private final SimpleContainer contents;
     private final int loopSlotCount;
 
-    /** Client-side factory: hand comes over the wire. */
+    /** Client-side factory: the locator comes over the wire. */
     public HungryLoopMenu(int windowId, Inventory playerInv, RegistryFriendlyByteBuf extraData) {
-        this(windowId, playerInv, extraData.readEnum(InteractionHand.class));
+        this(windowId, playerInv, LoopLocator.decode(extraData));
     }
 
-    public HungryLoopMenu(int windowId, Inventory playerInv, InteractionHand hand) {
+    public HungryLoopMenu(int windowId, Inventory playerInv, LoopLocator locator) {
         super(ModMenus.HUNGRY_LOOP.get(), windowId);
         this.player = playerInv.player;
-        this.hand = hand;
+        this.locator = locator;
 
-        ItemStack loop = player.getItemInHand(hand);
+        ItemStack loop = locator.resolve(player);
         LoopContents data = loop.getOrDefault(ModDataComponents.LOOP_CONTENTS.get(), LoopContents.DEFAULT);
         this.loopSlotCount = data.totalSlots();
         this.contents = new SimpleContainer(loopSlotCount);
@@ -97,7 +96,7 @@ public class HungryLoopMenu extends AbstractContainerMenu {
     private void persist() {
         if (player.level().isClientSide) return;
 
-        ItemStack loop = player.getItemInHand(hand);
+        ItemStack loop = locator.resolve(player);
         if (!(loop.getItem() instanceof HungryLoopItem)) return;
 
         LoopContents current = loop.getOrDefault(ModDataComponents.LOOP_CONTENTS.get(), LoopContents.DEFAULT);
@@ -106,6 +105,7 @@ public class HungryLoopMenu extends AbstractContainerMenu {
             items.add(contents.getItem(i));
         }
         loop.set(ModDataComponents.LOOP_CONTENTS.get(), current.withItems(items));
+        locator.afterChange(player, loop);
     }
 
     @Override
@@ -116,7 +116,7 @@ public class HungryLoopMenu extends AbstractContainerMenu {
 
     @Override
     public boolean stillValid(Player who) {
-        return who.getItemInHand(hand).getItem() instanceof HungryLoopItem;
+        return locator.resolve(who).getItem() instanceof HungryLoopItem;
     }
 
     @Override

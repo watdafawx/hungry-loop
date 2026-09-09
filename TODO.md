@@ -100,13 +100,18 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started · `[?]` needs a de
 
 - [x] Custom `AbstractContainerMenu` + `Screen` (`HungryLoopMenu` / `HungryLoopScreen`) — texture-less,
       slot cells drawn at the menu's own slot coords so it scales with slot count
-- [x] Open via right-click on the held loop (`HungryLoopItem.use` → `openMenu` with hand in extra data)
+- [x] **Right-click the loop where it sits in any inventory GUI** (`overrideOtherStackedOnMe`,
+      cursor empty + secondary) — player inventory, hotbar, or equipped in a curio slot
+- [x] Also opens from the loop in hand (`use`)
+- [x] `LoopLocator` (hand / inventory index / curio id+index) — survives the menu swap and the
+      network round trip; the menu writes back to the real stack wherever it is
 - [x] Menu accepts any curio, rejects another loop (no nesting), 1 per slot, writes back to the
       component on every change and on close
+- [ ] Right-click on the loop inside a **non-player** container (a chest) currently just swallows
+      the click — decide whether to support that or fall through
 - [ ] Open **as an overlay** — without closing the current screen (push a screen that renders the
       parent behind it, or a widget layer)
-- [ ] Keybind under a "The Hungry Loop" category + a C→S open packet; find the loop anywhere in
-      the player's inventory / curio slots, not just the held hand
+- [ ] Keybind under a "The Hungry Loop" category + a C→S open packet (open without a GUI already up)
 - [ ] Slot rendering shows each sub-slot's resolved type (ring/amulet/etc. background icon)
 - [ ] Rich tooltip on the item: drag items in/out **through the tooltip**
 - [ ] "Feed XP" button + slot-cost readout in the screen
