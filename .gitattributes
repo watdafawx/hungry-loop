@@ -1,0 +1,6 @@
+# Normalise line endings so the working tree stops reporting phantom changes.
+* text=auto eol=lf
+*.bat text eol=crlf
+gradlew text eol=lf
+*.jar binary
+*.png binary

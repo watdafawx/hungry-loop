@@ -2400,3 +2400,8 @@ java.lang.IllegalArgumentException: Items without a valid loot category are not 
 [16:18:15] [Render thread/INFO] [minecraft/AdvancementTree]: Loaded 8 advancements
 [16:18:26] [Server thread/DEBUG] [mixin/]: Mixing swimming.FallLocationMixin from expandability-common.mixins.json into net.minecraft.world.damagesource.FallLocation
 [16:18:26] [Server thread/DEBUG] [mixin/]: expandability-common.mixins.json:swimming.FallLocationMixin from mod expandability: Class version 65 required is higher than the class version supported by the current version of Mixin (JAVA_17 supports class version 61)
+[16:21:31] [Server thread/INFO] [minecraft/IntegratedServer]: Saving and pausing game...
+[16:21:31] [Server thread/INFO] [minecraft/MinecraftServer]: Saving chunks for level 'ServerLevel[New World]'/minecraft:overworld
+[16:21:31] [Server thread/INFO] [minecraft/MinecraftServer]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_nether
+[16:21:31] [Server thread/INFO] [minecraft/MinecraftServer]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_end
+[16:21:31] [Server thread/DEBUG] [ne.ne.ne.co.CommonHooks/WP]: Gathered mod list to write to world save New World
