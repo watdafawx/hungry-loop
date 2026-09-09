@@ -172,18 +172,16 @@ public final class LoopSlotMirror {
         for (int i = stacks.getSlots() - 1; i >= 0 && isMirror(stacks.getStackInSlot(i)); i--) {
             count++;
         }
-        if (stacks.getSlots() > 0) {
-            StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < stacks.getSlots(); i++) {
-                ItemStack s = stacks.getStackInSlot(i);
-                sb.append(" [").append(i).append(']')
-                  .append(s.isEmpty() ? "empty" : s.getItem().toString())
-                  .append(s.has(ModDataComponents.LOOP_MANAGED.get()) ? "*MIRROR" : "");
-            }
-            HungryLoop.LOG.info("[hiddenSlotCount] {} slots={} hidden={} contents:{}",
-                    stacksHandler.getIdentifier(), stacks.getSlots(), count, sb);
-        }
         return count;
+    }
+
+    /** Total hidden (mirror) slots across every type - used to keep the screen's panel sizing honest. */
+    public static int totalHiddenSlots(ICuriosItemHandler handler) {
+        int total = 0;
+        for (ICurioStacksHandler sh : handler.getCurios().values()) {
+            total += hiddenSlotCount(sh);
+        }
+        return total;
     }
 
     private static void purgeStrayMirrors(ServerPlayer player) {

@@ -29,12 +29,9 @@ public final class ContentForwarding {
         if (slots.isEmpty()) return GENERIC_SLOT;
         slots.sort(null);
 
-        String chosen = slots.get(0);
         for (String id : slots) {
-            if (!id.equals(GENERIC_SLOT)) { chosen = id; break; }
+            if (!id.equals(GENERIC_SLOT)) return id;
         }
-        dev.mtop.hungryloop.HungryLoop.LOG.info("[resolveSlot] {} candidates={} -> {} side={}",
-                stack.getItem(), slots, chosen, wearer.level().isClientSide ? "C" : "S");
-        return chosen;
+        return slots.get(0);
     }
 }

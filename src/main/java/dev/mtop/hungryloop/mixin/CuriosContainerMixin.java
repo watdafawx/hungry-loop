@@ -4,6 +4,7 @@ import com.llamalad7.mixinextras.sugar.Local;
 import dev.mtop.hungryloop.curio.LoopSlotMirror;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
+import top.theillusivec4.curios.api.type.capability.ICuriosItemHandler;
 import top.theillusivec4.curios.api.type.inventory.ICurioStacksHandler;
 import top.theillusivec4.curios.api.type.inventory.IDynamicStackHandler;
 import top.theillusivec4.curios.common.inventory.container.CuriosContainer;
@@ -43,5 +44,15 @@ public abstract class CuriosContainerMixin {
                                             @Local ICurioStacksHandler stacksHandler) {
         int real = stacks.getSlots();
         return Math.max(0, real - LoopSlotMirror.hiddenSlotCount(stacksHandler));
+    }
+
+    /** Keep the panel's column/row/height maths in step with the slots we actually add. */
+    @Redirect(
+            method = "setPage",
+            at = @At(value = "INVOKE",
+                    target = "Ltop/theillusivec4/curios/api/type/capability/ICuriosItemHandler;getVisibleSlots()I"),
+            remap = false)
+    private int hungryloop$shrinkVisibleCount(ICuriosItemHandler handler) {
+        return Math.max(0, handler.getVisibleSlots() - LoopSlotMirror.totalHiddenSlots(handler));
     }
 }
