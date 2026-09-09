@@ -1,7 +1,6 @@
 package dev.mtop.hungryloop.mixin;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.math.Axis;
 import dev.mtop.hungryloop.item.HungryLoopItem;
 import net.minecraft.Util;
 import net.minecraft.client.renderer.MultiBufferSource;
@@ -15,7 +14,10 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/** Gives the loop a gentle idle rock + breathing scale wherever it's drawn flat in a GUI. */
+/**
+ * A quiet "alive" idle for the loop in GUIs: a sub-pixel bob and a breathing scale that never
+ * exceeds 1, so it always stays inside its 16px slot. The showy spin lives in the loop's own screen.
+ */
 @Mixin(ItemRenderer.class)
 public class ItemRendererMixin {
 
@@ -27,9 +29,8 @@ public class ItemRendererMixin {
             return;
         }
         float t = (Util.getMillis() % 3600L) / 3600f * Mth.TWO_PI;
-        pose.translate(0.5f, 0.5f, 0f);
-        pose.mulPose(Axis.ZP.rotation(Mth.sin(t) * 0.10f));
-        float scale = 1f + Mth.sin(t * 1.6f) * 0.035f;
+        float scale = 0.955f + Mth.sin(t) * 0.03f;   // 0.925 .. 0.985 - always < 1
+        pose.translate(0.5f, 0.5f + Mth.sin(t * 1.3f) * 0.02f, 0f);
         pose.scale(scale, scale, 1f);
         pose.translate(-0.5f, -0.5f, 0f);
     }

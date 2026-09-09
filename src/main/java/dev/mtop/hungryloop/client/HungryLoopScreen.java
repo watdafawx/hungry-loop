@@ -6,6 +6,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.player.Inventory;
@@ -205,7 +206,25 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         super.render(g, mouseX, mouseY, partialTick); // renders bg + slots (not tooltips)
+        renderPlayerPreview(g, mouseX, mouseY);
         renderTooltip(g, mouseX, mouseY);             // AbstractContainerScreen leaves this to us
+    }
+
+    /** A live player model beside the panel, so you can see which contained cosmetics are showing. */
+    private void renderPlayerPreview(GuiGraphics g, int mouseX, int mouseY) {
+        if (minecraft == null || minecraft.player == null) return;
+
+        int pw = 62;
+        int ph = 94;
+        int px = leftPos - pw - 4;
+        if (px < 2) px = leftPos + imageWidth + 4; // no room on the left - go right
+
+        int py = topPos + 2;
+        g.fillGradient(px, py, px + pw, py + ph, 0xFF241C30, 0xFF15101E);
+        bevel(g, px, py, pw, ph, COPPER, COPPER_LIGHT, COPPER_DARK);
+
+        InventoryScreen.renderEntityInInventoryFollowsMouse(g,
+                px + 4, py + 6, px + pw - 4, py + ph - 6, 30, 0.0625f, mouseX, mouseY, minecraft.player);
     }
 
     @Override
