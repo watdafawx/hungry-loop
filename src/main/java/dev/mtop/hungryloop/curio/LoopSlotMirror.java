@@ -7,7 +7,6 @@ import dev.mtop.hungryloop.item.HungryLoopItem;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.item.ItemEntity;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -176,22 +175,18 @@ public final class LoopSlotMirror {
     }
 
     /**
-     * How many slots of {@code type} the player's worn loops grant right now - derived from the
-     * loops' own contents, so it's correct even before the mirror stacks have synced.
+     * How many of this handler's trailing slots are mirror slots the loop granted, and so should be
+     * hidden from the Curios screen. Counting the mirror stacks actually present - rather than what
+     * the loop's contents imply - is the safe signal: a base slot never holds a mirror, so this can
+     * only ever hide slots the loop added. The server places the mirrors in {@code setPage}'s HEAD
+     * hook before this runs; on the client they arrive with Curios' stack sync and this converges a
+     * tick or two after a curio change.
      */
-    public static int grantedCount(Player player, String type) {
-        ICuriosItemHandler handler = CuriosApi.getCuriosInventory(player).orElse(null);
-        if (handler == null) return 0;
-
+    public static int hiddenSlotCount(ICurioStacksHandler stacksHandler) {
+        var stacks = stacksHandler.getStacks();
         int count = 0;
-        for (SlotResult worn : handler.findCurios(s -> s.getItem() instanceof HungryLoopItem && !isMirror(s))) {
-            LoopContents data = worn.stack()
-                    .getOrDefault(ModDataComponents.LOOP_CONTENTS.get(), LoopContents.DEFAULT);
-            for (ItemStack contained : data.items()) {
-                if (!contained.isEmpty() && ContentForwarding.resolveSlot(contained, player).equals(type)) {
-                    count++;
-                }
-            }
+        for (int i = stacks.getSlots() - 1; i >= 0 && isMirror(stacks.getStackInSlot(i)); i--) {
+            count++;
         }
         return count;
     }

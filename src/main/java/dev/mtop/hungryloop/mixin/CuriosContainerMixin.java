@@ -16,9 +16,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
  * Hides the extra Curios slots the loop grants from the Curios screen. {@code setPage} builds one GUI
- * slot per slot in each type's handler; we trim that count by how many slots the loop grants for the
- * type ({@link LoopSlotMirror#grantedCount}). That's derived from the loop's own synced contents, so
- * it's right the instant the loop is equipped - it doesn't wait for the mirror stacks to arrive.
+ * slot per slot in each type's handler; we trim that count by the number of trailing mirror slots the
+ * loop added ({@link LoopSlotMirror#hiddenSlotCount}). The HEAD hook reconciles the mirrors first
+ * (server side) so that count is accurate.
  *
  * <p>The underlying stacks stay in the handler, so Relics/Artifacts/Apotheosis still see them.
  */
@@ -42,6 +42,6 @@ public abstract class CuriosContainerMixin {
     private int hungryloop$hideGrantedSlots(IDynamicStackHandler stacks,
                                             @Local ICurioStacksHandler stacksHandler) {
         int real = stacks.getSlots();
-        return Math.max(0, real - LoopSlotMirror.grantedCount(player, stacksHandler.getIdentifier()));
+        return Math.max(0, real - LoopSlotMirror.hiddenSlotCount(stacksHandler));
     }
 }
