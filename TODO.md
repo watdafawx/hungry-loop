@@ -104,7 +104,7 @@ So the loop **grants real Curios slots** and mirrors its contents into them.
 - [x] Cost curve `LoopContents.slotCost(base, bonus)` = `round(5 · 1.7^(have−4)) + 3·(base−4)` —
       steep per-slot growth + a flat surcharge per starting slot, so a 4-slot and an 8-slot shiny
       converge on similar total investment
-- [x] Hard cap: 12 total slots (`MAX_TOTAL_SLOTS`)
+- [x] Hard cap: 12 total slots (`MAX_TOTAL_SLOTS`) — `[?]` raise it? config it?
 - [x] Consume player XP levels, bank partial progress in `storedXp`, grow `bonusSlots`, level-up
       sound, reopen menu to show new slots
 - [x] Progress persists on the stack (component); loop is `stacksTo(1)`
@@ -131,6 +131,9 @@ So the loop **grants real Curios slots** and mirrors its contents into them.
 - [ ] Rich tooltip on the item: drag items in/out **through the tooltip**
 - [x] "Feed XP" button + `stored / cost XP levels` readout in the screen
 - [x] Shiny loops visually distinct (aqua bevel + badge colour)
+- [ ] GUI polish pass (user feedback): approach liked; no drop-shadow (done); "future" slots as a
+      faint outline not a well (done); still want it to feel less like Relics-lite — loop icon in
+      the header, maybe a "maw" motif for the feed area, art for the slot backgrounds
 - [x] Passthrough-selected item shown in the loop's name / tooltip
 
 ## Phase 7 — Loot & the shiny variant
