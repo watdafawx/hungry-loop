@@ -13,6 +13,7 @@
   "hungryloop.tooltip.contents": "Holds:",
   "hungryloop.tooltip.empty": "Empty",
   "hungryloop.tooltip.page": "Page %s / %s — scroll over the loop for more",
+  "hungryloop.socket.empty": "Empty Socket",
 
   "hungryloop.screen.title": "The Hungry Loop",
   "hungryloop.screen.feed": "Feed XP",

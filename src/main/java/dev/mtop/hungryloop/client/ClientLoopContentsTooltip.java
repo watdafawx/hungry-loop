@@ -44,6 +44,8 @@ public class ClientLoopContentsTooltip implements ClientTooltipComponent {
         int page = Math.min(Math.max(TooltipPager.page, 0), pageCount - 1);
         TooltipPager.page = page; // clamp the shared state so scrolling can't run off the end
 
+        boolean apotheosis = net.neoforged.fml.ModList.get().isLoaded("apotheosis");
+
         for (int c = page * CARDS_PER_PAGE; c < Math.min(items.size(), (page + 1) * CARDS_PER_PAGE); c++) {
             ItemStack stack = items.get(c);
             List<Component> lines = stack.getTooltipLines(ctx, mc.player, flag);
@@ -53,7 +55,17 @@ public class ClientLoopContentsTooltip implements ClientTooltipComponent {
             addRow(font, stack, name.getVisualOrderText(), ICON);
 
             for (int i = 1; i < lines.size(); i++) {
-                addRow(font, ItemStack.EMPTY, lines.get(i).getVisualOrderText(), SUBLINE);
+                Component line = lines.get(i);
+                if (apotheosis && dev.mtop.hungryloop.integration.apotheosis.ApothTooltip.isPlaceholder(line)) {
+                    continue; // the socket / attribute marker - rendered as real lines below
+                }
+                addRow(font, ItemStack.EMPTY, line.getVisualOrderText(), SUBLINE);
+            }
+            if (apotheosis) {
+                for (Component socket : dev.mtop.hungryloop.integration.apotheosis.ApothTooltip
+                        .socketLines(stack, mc.player, ctx, flag)) {
+                    addRow(font, ItemStack.EMPTY, socket.getVisualOrderText(), SUBLINE);
+                }
             }
             addRow(font, ItemStack.EMPTY, FormattedCharSequence.EMPTY, 4);
         }

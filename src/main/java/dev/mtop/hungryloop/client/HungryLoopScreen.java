@@ -185,6 +185,12 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
     }
 
     @Override
+    public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        super.render(g, mouseX, mouseY, partialTick); // renders bg + slots (not tooltips)
+        renderTooltip(g, mouseX, mouseY);             // AbstractContainerScreen leaves this to us
+    }
+
+    @Override
     protected void renderTooltip(GuiGraphics g, int mouseX, int mouseY) {
         LoopContents data = menu.loopData();
 
