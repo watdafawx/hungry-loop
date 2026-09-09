@@ -2,6 +2,7 @@ package dev.mtop.hungryloop.menu;
 
 import dev.mtop.hungryloop.component.LoopContents;
 import dev.mtop.hungryloop.component.ModDataComponents;
+import dev.mtop.hungryloop.curio.LoopSlotMirror;
 import dev.mtop.hungryloop.item.HungryLoopItem;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.world.Container;
@@ -112,6 +113,7 @@ public class HungryLoopMenu extends AbstractContainerMenu {
     public void removed(Player who) {
         super.removed(who);
         persist();
+        LoopSlotMirror.syncIfServer(who); // push contents changes into the granted curio slots now
     }
 
     @Override

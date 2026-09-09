@@ -9,15 +9,19 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.item.ItemStack;
-import top.theillusivec4.curios.api.CuriosApi;
+import top.theillusivec4.curios.api.SlotAttribute;
 import top.theillusivec4.curios.api.SlotContext;
 import top.theillusivec4.curios.api.type.capability.ICurioItem;
 
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
- * The loop's Curios behaviour: it grants nothing of its own and instead forwards everything to its
- * contents, each as though equipped in its own native slot (see {@link ContentForwarding}).
+ * The loop's Curios behaviour. It grants nothing of its own and forwards no effects directly -
+ * instead, while worn, it grants the wearer one extra Curios slot per contained item, of that
+ * item's resolved type. {@code LoopSlotMirror} fills those slots with the loop's contents, so Curios
+ * itself ticks them, applies their attributes, and every mod that scans the Curios inventory
+ * (Apotheosis, Relics, Artifacts, ...) sees them equipped in their own slot.
  *
  * <p>Registered against {@code ModItems.HUNGRY_LOOP} from {@code FMLCommonSetupEvent}.
  */
@@ -33,49 +37,28 @@ public final class HungryLoopCurio implements ICurioItem {
 
     @Override
     public boolean canEquip(SlotContext slotContext, ItemStack stack) {
-        return true; // the loop sits in the generic "curio" slot, which Curios accepts anywhere
-    }
-
-    @Override
-    public void curioTick(SlotContext slotContext, ItemStack stack) {
-        ContentForwarding.each(slotContext, contents(stack), (curio, sub, s, i) -> curio.curioTick(sub));
-    }
-
-    @Override
-    public void onEquip(SlotContext slotContext, ItemStack prevStack, ItemStack stack) {
-        ContentForwarding.each(slotContext, contents(stack), (curio, sub, s, i) -> curio.onEquip(sub, s));
-    }
-
-    @Override
-    public void onUnequip(SlotContext slotContext, ItemStack newStack, ItemStack stack) {
-        ContentForwarding.each(slotContext, contents(stack), (curio, sub, s, i) -> curio.onUnequip(sub, s));
+        return true; // generic "curio" slot - Curios accepts it anywhere
     }
 
     @Override
     public Multimap<Holder<Attribute>, AttributeModifier> getAttributeModifiers(SlotContext slotContext,
                                                                                 ResourceLocation id,
                                                                                 ItemStack stack) {
-        Multimap<Holder<Attribute>, AttributeModifier> all = HashMultimap.create();
-        LoopContents contents = contents(stack);
-        List<ItemStack> items = contents.items();
+        Multimap<Holder<Attribute>, AttributeModifier> modifiers = HashMultimap.create();
 
-        for (int i = 0; i < items.size(); i++) {
-            ItemStack contained = items.get(i);
-            if (contained.isEmpty() || CuriosApi.getCurio(contained).isEmpty()) continue;
-
-            String slotType = ContentForwarding.resolveSlot(contained, slotContext.entity());
-            SlotContext sub = ContentForwarding.subContext(slotContext, slotType, i);
-            ResourceLocation subId = id.withSuffix("/hl_" + i);
-            int index = i;
-
-            // Re-id every forwarded modifier so two copies of the same curio in one loop don't
-            // collide on the wearer's AttributeMap (which is keyed by modifier id).
-            CuriosApi.getAttributeModifiers(sub, subId, contained).forEach((attribute, modifier) ->
-                    all.put(attribute, new AttributeModifier(
-                            modifier.id().withSuffix("/hl_" + index),
-                            modifier.amount(),
-                            modifier.operation())));
+        // One extra slot per contained item, grouped by the type it resolves to. Curios grows and
+        // shrinks these with the loop's equip state; LoopSlotMirror fills them.
+        Map<String, Integer> grantsByType = new HashMap<>();
+        for (ItemStack contained : contents(stack).items()) {
+            if (contained.isEmpty()) continue;
+            grantsByType.merge(ContentForwarding.resolveSlot(contained, slotContext.entity()), 1, Integer::sum);
         }
-        return all;
+
+        grantsByType.forEach((type, count) -> modifiers.put(
+                SlotAttribute.getOrCreate(type),
+                new AttributeModifier(id.withSuffix("/hl_slot_" + type), count,
+                        AttributeModifier.Operation.ADD_VALUE)));
+
+        return modifiers;
     }
 }

@@ -41,25 +41,30 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started · `[?]` needs a de
 - [ ] Resolve-once and cache the slot type on the sub-slot? (currently recomputed each tick — fine
       for now, revisit if it shows up in a profile)
 
-## Phase 2 — Curios integration (the loop as a curio)
+## Phase 2 — Curios integration (real hidden slots)
 
-- [x] Register the loop as an `ICurioItem` (`HungryLoopCurio`, via `CuriosApi.registerCurio` in
-      `FMLCommonSetupEvent`)
-- [x] Loop sits in the generic `curio` slot type (item tag `#curios:curio`) → equippable in **any**
-      curio slot, competes with nothing
-- [x] Loop grants nothing itself — all effects come from forwarding
-- [x] Forward **attribute modifiers** of every contained stack, re-id'd per sub-slot so duplicates
-      don't collide on the wearer's AttributeMap (`HungryLoopCurio.getAttributeModifiers`)
-- [x] Forward `curioTick`, `onEquip`, `onUnequip` to contents with a synthesized `SlotContext`
-      carrying the sub-slot's type + the loop's wearer
-- [ ] Forward the rest: `onEquipFromUse`, `curioBreak`, `getFortuneLevel` / `getLootingLevel`,
-      `makesPiglinsNeutral`, `canWalkOnPowderedSnow`, `getDropRule`, sync data
-- [ ] Fire equip/unequip on contents when the loop's inventory changes while worn (not just when the
-      loop itself is equipped) — needs a `CurioChangeEvent`-style hook or menu-close diffing
-- [ ] Render nothing on the player body for contained cosmetics (or `[?]` render the first one?)
-- [ ] **Verify**: a plain Curios ring with `+HP` works identically in a loop vs a native ring slot
-- [ ] Right-click opens the menu ✓ — keybind + "open from anywhere in inventory" still needs a
-      C→S packet (see Phase 6)
+Approach (decided 2026-09-09): forwarding `ICurio.curioTick` is **not enough** — Relics and Artifacts
+scan the player's real Curios inventory to find equipped items and drive their abilities centrally.
+So the loop **grants real Curios slots** and mirrors its contents into them.
+
+- [x] Register the loop as an `ICurioItem`; equippable in any slot via `#curios:curio`
+- [x] `HungryLoopCurio.getAttributeModifiers` returns **only** `SlotAttribute` grants — one extra
+      slot per contained item, of that item's resolved type. Curios grows/shrinks them with the
+      loop's equip state.
+- [x] `LoopSlotMirror` — server tick (every 5t) + on menu close: fills the granted slots with
+      marked mirror copies of the loop's contents; clears them on unequip / slot-modifier update /
+      login (before Curios can drop them)
+- [x] `CurioSlotMixin` — makes mirror slots read-only in the Curios screen (no dupe by yanking a
+      copy out)
+- [ ] **Hide the granted slots from the Curios screen entirely** (mixin `CuriosContainer` slot
+      build, or client screen render) — right now they're visible-but-locked
+- [ ] Verify each: Apotheosis affix abilities, Relics abilities, Artifacts abilities all fire from
+      a loop-held item
+- [ ] Handle the grant not being recomputed the instant loop contents change while worn (currently
+      relies on Curios' own stack-change detection + the 5t mirror — can lag a moment)
+- [ ] Contained cosmetics rendering on the body — decide (probably suppress)
+- [ ] Multiple loops, loop-in-loop guard under the new model
+- [x] Right-click opens the menu (hand + in-GUI) — keybind still TODO (Phase 6)
 
 ## Phase 3 — Apotheosis / affix support
 
@@ -131,9 +136,12 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started · `[?]` needs a de
         Relics, Artifacts, and every Curios addon)
   - [x] roll Apotheosis affixes + gems when Apotheosis is present (`ApothLoot`, lifted from
         foxs-tweaks' `ApothicTestGear`)
-  - [x] Relics: unlock every ability's research so it's usable immediately (`RelicsUnlock`)
+  - [x] Relics: `RelicsUnlock` completes research + sets ability level ≥1 (may need to run after
+        Relics inits the stack — see `/hungryloop unlock`)
   - [x] diagnostic line per item: `name — sub-slot type — loot category — affix/gem note`
   - [ ] `[?]` option to drop the generated items straight into a loop instead of the inventory
+- [x] `/hungryloop unlock` — sweep inventory + curio slots + loop contents, unlock every relic
+      (reliable post-hoc version, since gen-time unlock can be too early)
 - [x] `/hungryloop give [slots] [shiny]` — a loop with a chosen slot count / shiny flag
 - [x] op-gated (`LEVEL_GAMEMASTERS`); `HungryLoopCommands` is **hand-registered** from the mod
       ctor (not `@EventBusSubscriber`) because `gen` reaches into Apotheosis/Relics behind

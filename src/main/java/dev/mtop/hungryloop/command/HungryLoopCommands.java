@@ -71,7 +71,9 @@ public final class HungryLoopCommands {
                                 .then(Commands.argument("sockets", IntegerArgumentType.integer(0, MAX_SOCKETS))
                                         .executes(ctx -> gen(ctx.getSource(),
                                                 IntegerArgumentType.getInteger(ctx, "count"),
-                                                IntegerArgumentType.getInteger(ctx, "sockets")))))));
+                                                IntegerArgumentType.getInteger(ctx, "sockets"))))))
+                .then(Commands.literal("unlock")
+                        .executes(ctx -> unlock(ctx.getSource()))));
     }
 
     private static int give(CommandSourceStack source, int slots, boolean shiny) throws CommandSyntaxException {
@@ -157,5 +159,44 @@ public final class HungryLoopCommands {
         source.sendSuccess(() -> Component.translatable("commands.hungryloop.gen.success", total)
                 .withStyle(ChatFormatting.GREEN), true);
         return placed;
+    }
+
+    /** Unlock every relic ability the player is carrying - inventory, curio slots, and inside loops. */
+    private static int unlock(CommandSourceStack source) throws CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+
+        if (!ModList.get().isLoaded(HungryLoop.RELICS)) {
+            source.sendFailure(Component.literal("Relics is not installed."));
+            return 0;
+        }
+
+        int count = 0;
+        for (ItemStack stack : carriedStacks(player)) {
+            if (RelicsUnlock.unlockAll(player, stack)) count++;
+        }
+
+        int total = count;
+        source.sendSuccess(() -> Component.literal("Unlocked abilities on " + total + " relic(s).")
+                .withStyle(ChatFormatting.GREEN), true);
+        return count;
+    }
+
+    private static List<ItemStack> carriedStacks(ServerPlayer player) {
+        List<ItemStack> all = new ArrayList<>();
+        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+            all.add(player.getInventory().getItem(i));
+        }
+        CuriosApi.getCuriosInventory(player).ifPresent(handler -> {
+            var equipped = handler.getEquippedCurios();
+            for (int i = 0; i < equipped.getSlots(); i++) {
+                all.add(equipped.getStackInSlot(i));
+            }
+        });
+        for (ItemStack stack : List.copyOf(all)) {
+            if (stack.getItem() instanceof dev.mtop.hungryloop.item.HungryLoopItem) {
+                all.addAll(dev.mtop.hungryloop.item.HungryLoopItem.contentsOf(stack).items());
+            }
+        }
+        return all;
     }
 }
