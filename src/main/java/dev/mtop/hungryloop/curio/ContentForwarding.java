@@ -4,6 +4,9 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import top.theillusivec4.curios.api.CuriosApi;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Resolves which Curios slot type a contained item should occupy while it's in the loop.
  *
@@ -19,13 +22,19 @@ public final class ContentForwarding {
     private ContentForwarding() {}
 
     public static String resolveSlot(ItemStack stack, LivingEntity wearer) {
-        var slots = CuriosApi.getItemStackSlots(stack, wearer).keySet();
-
+        // Sorted so the choice is deterministic: getItemStackSlots' key order isn't stable, and if
+        // getAttributeModifiers and LoopSlotMirror pick different types for the same item we end up
+        // granting one slot type and mirroring into another.
+        List<String> slots = new ArrayList<>(CuriosApi.getItemStackSlots(stack, wearer).keySet());
         if (slots.isEmpty()) return GENERIC_SLOT;
+        slots.sort(null);
 
+        String chosen = slots.get(0);
         for (String id : slots) {
-            if (!id.equals(GENERIC_SLOT)) return id;
+            if (!id.equals(GENERIC_SLOT)) { chosen = id; break; }
         }
-        return slots.iterator().next();
+        dev.mtop.hungryloop.HungryLoop.LOG.info("[resolveSlot] {} candidates={} -> {} side={}",
+                stack.getItem(), slots, chosen, wearer.level().isClientSide ? "C" : "S");
+        return chosen;
     }
 }
