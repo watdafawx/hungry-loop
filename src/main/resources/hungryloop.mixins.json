@@ -4,7 +4,8 @@
   "package": "dev.mtop.hungryloop.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
-    "CurioSlotMixin"
+    "CurioSlotMixin",
+    "CuriosContainerMixin"
   ],
   "injectors": {
     "defaultRequire": 1
