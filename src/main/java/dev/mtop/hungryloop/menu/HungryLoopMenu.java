@@ -24,7 +24,14 @@ import top.theillusivec4.curios.api.CuriosApi;
  */
 public class HungryLoopMenu extends AbstractContainerMenu {
 
-    private static final int LOOP_SLOTS_PER_ROW = 6;
+    public static final int LOOP_SLOTS_PER_ROW = 6;
+    public static final int PANEL_WIDTH = 176;
+    public static final int PANEL_HEIGHT = 192;
+    public static final int LOOP_ORIGIN_Y = 20;
+    public static final int PLAYER_INV_Y = 108;
+
+    public static final int BUTTON_FEED_ONE = 0;
+    public static final int BUTTON_FEED_SLOT = 1;
 
     private final Player player;
     private final LoopLocator locator;
@@ -55,16 +62,20 @@ public class HungryLoopMenu extends AbstractContainerMenu {
         addPlayerSlots(playerInv);
     }
 
+    public static int loopSlotX(int index, int slotCount) {
+        int row = index / LOOP_SLOTS_PER_ROW;
+        int col = index % LOOP_SLOTS_PER_ROW;
+        int rowCount = Math.min(LOOP_SLOTS_PER_ROW, slotCount - row * LOOP_SLOTS_PER_ROW);
+        return (PANEL_WIDTH - rowCount * 18) / 2 + col * 18 + 1;
+    }
+
+    public static int loopSlotY(int index) {
+        return LOOP_ORIGIN_Y + (index / LOOP_SLOTS_PER_ROW) * 18;
+    }
+
     private void addLoopSlots() {
-        int rows = Math.max(1, (loopSlotCount + LOOP_SLOTS_PER_ROW - 1) / LOOP_SLOTS_PER_ROW);
         for (int i = 0; i < loopSlotCount; i++) {
-            int row = i / LOOP_SLOTS_PER_ROW;
-            int col = i % LOOP_SLOTS_PER_ROW;
-            int rowCount = Math.min(LOOP_SLOTS_PER_ROW, loopSlotCount - row * LOOP_SLOTS_PER_ROW);
-            int rowWidth = rowCount * 18;
-            int x = (176 - rowWidth) / 2 + col * 18 + 1;
-            int y = 18 + row * 18 + (rows == 1 ? 9 : 0);
-            addSlot(new Slot(contents, i, x, y) {
+            addSlot(new Slot(contents, i, loopSlotX(i, loopSlotCount), loopSlotY(i)) {
                 @Override
                 public boolean mayPlace(ItemStack stack) {
                     return isEquippableCurio(stack);
@@ -79,14 +90,13 @@ public class HungryLoopMenu extends AbstractContainerMenu {
     }
 
     private void addPlayerSlots(Inventory inv) {
-        int invY = 18 + 3 * 18 + 14;
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
-                addSlot(new Slot(inv, col + row * 9 + 9, 8 + col * 18, invY + row * 18));
+                addSlot(new Slot(inv, col + row * 9 + 9, 8 + col * 18, PLAYER_INV_Y + row * 18));
             }
         }
         for (int col = 0; col < 9; col++) {
-            addSlot(new Slot(inv, col, 8 + col * 18, invY + 58));
+            addSlot(new Slot(inv, col, 8 + col * 18, PLAYER_INV_Y + 58));
         }
     }
 
@@ -122,6 +132,46 @@ public class HungryLoopMenu extends AbstractContainerMenu {
     @Override
     public boolean stillValid(Player who) {
         return locator.resolve(who).getItem() instanceof HungryLoopItem;
+    }
+
+    /** Button 0: feed one XP level. Button 1: feed as many levels as the next slot needs. */
+    @Override
+    public boolean clickMenuButton(Player who, int buttonId) {
+        if (who.level().isClientSide) return true;
+
+        ItemStack loop = locator.resolve(who);
+        if (!(loop.getItem() instanceof HungryLoopItem)) return false;
+
+        LoopContents data = loop.getOrDefault(ModDataComponents.LOOP_CONTENTS.get(), LoopContents.DEFAULT);
+        if (!data.canGrow() || who.experienceLevel <= 0) return false;
+
+        int need = data.nextSlotCost() - data.storedXp();
+        int feed = Math.min(who.experienceLevel, buttonId == 1 ? Math.max(1, need) : 1);
+        if (feed <= 0) return false;
+
+        who.giveExperienceLevels(-feed);
+        LoopContents fed = data.feed(feed);
+        loop.set(ModDataComponents.LOOP_CONTENTS.get(), fed);
+
+        if (fed.totalSlots() > data.totalSlots()) {
+            who.level().playSound(null, who.blockPosition(), net.minecraft.sounds.SoundEvents.PLAYER_LEVELUP,
+                    net.minecraft.sounds.SoundSource.PLAYERS, 0.6f, 1.4f);
+            if (who instanceof ServerPlayer sp) {
+                open(sp, locator); // reopen so the new slots appear
+            }
+        } else {
+            broadcastChanges();
+        }
+        return true;
+    }
+
+    /** Live view of the loop for the screen (client resolves its own synced copy). */
+    public LoopContents loopData() {
+        return locator.resolve(player).getOrDefault(ModDataComponents.LOOP_CONTENTS.get(), LoopContents.DEFAULT);
+    }
+
+    public int playerXpLevels() {
+        return player.experienceLevel;
     }
 
     @Override

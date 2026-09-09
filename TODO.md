@@ -100,17 +100,21 @@ So the loop **grants real Curios slots** and mirrors its contents into them.
 
 ## Phase 5 — XP-fed slot growth
 
-- [ ] "Feed XP" action (from the overlay, and/or right-click with XP in hand?)
-- [ ] Cost curve: `cost(nextSlot) = f(baseSlots, currentSlots)` — higher base ⇒ higher per-slot cost
-      (so a 4-slot loop and an 8-slot shiny converge in total investment). Numbers in DESIGN.md.
-- [ ] Hard cap on total slots `[?]` (12? 16?)
-- [ ] Consume player XP levels/points, grow `contents`, feedback message + sound/particles
-- [ ] Persist progress on the stack; survive stacking rules (loop is `stacksTo(1)` already)
+- [x] "Feed XP" button in the screen (click = 1 level, shift-click = enough for the next slot)
+- [x] Cost curve `LoopContents.slotCost(base, bonus)` = `round(5 · 1.7^(have−4)) + 3·(base−4)` —
+      steep per-slot growth + a flat surcharge per starting slot, so a 4-slot and an 8-slot shiny
+      converge on similar total investment
+- [x] Hard cap: 12 total slots (`MAX_TOTAL_SLOTS`)
+- [x] Consume player XP levels, bank partial progress in `storedXp`, grow `bonusSlots`, level-up
+      sound, reopen menu to show new slots
+- [x] Progress persists on the stack (component); loop is `stacksTo(1)`
+- [ ] Particles on slot-add; balance the curve against a real modpack
 
 ## Phase 6 — UI
 
-- [x] Custom `AbstractContainerMenu` + `Screen` (`HungryLoopMenu` / `HungryLoopScreen`) — texture-less,
-      slot cells drawn at the menu's own slot coords so it scales with slot count
+- [x] Custom `AbstractContainerMenu` + `Screen` (`HungryLoopMenu` / `HungryLoopScreen`) —
+      procedural: obsidian panel + copper bevel, iridescent divider echoing the ring band, real +
+      dimmed "future" slot wells up to the cap, XP-feed bar + button, shiny = aqua bevel
 - [x] **Right-click the loop where it sits in any inventory GUI** (`overrideOtherStackedOnMe`,
       cursor empty + secondary) — player inventory, hotbar, or equipped in a curio slot
 - [x] Also opens from the loop in hand (`use`)
@@ -125,14 +129,18 @@ So the loop **grants real Curios slots** and mirrors its contents into them.
 - [ ] Keybind under a "The Hungry Loop" category + a C→S open packet (open without a GUI already up)
 - [ ] Slot rendering shows each sub-slot's resolved type (ring/amulet/etc. background icon)
 - [ ] Rich tooltip on the item: drag items in/out **through the tooltip**
-- [ ] "Feed XP" button + slot-cost readout in the screen
-- [ ] Shiny loops visually distinct in the UI
+- [x] "Feed XP" button + `stored / cost XP levels` readout in the screen
+- [x] Shiny loops visually distinct (aqua bevel + badge colour)
+- [x] Passthrough-selected item shown in the loop's name / tooltip
 
 ## Phase 7 — Loot & the shiny variant
 
-- [ ] Loot-table injection: the loop appears in dungeon/structure loot
-- [ ] Shiny roll on loot-spawned loops: 4–8 base slots, weighted toward 4
-- [ ] `[?]` Shiny = just more base slots, or also a stat/quality bonus?
+- [x] Shiny loot variant via a Global Loot Modifier (`ShinyLoopModifier`) — 6% chance in ~15
+      structure chest tables (`data/hungryloop/loot_modifier/shiny_hungry_loop.json`)
+- [x] Shiny loot loops roll 6–8 base slots ("double slots unlocked"), `shiny=true`, loot-only
+- [x] Shiny = slots only for v1 (no quality bonus)
+- [ ] Weight the base-slot roll toward 6; tune the chance and table list per pack
+- [ ] Datagen the loot-modifier + recipe instead of hand-written JSON
 - [ ] Loot tables via datagen
 
 ## Phase 8 — Test command
@@ -158,7 +166,8 @@ So the loop **grants real Curios slots** and mirrors its contents into them.
 - [ ] Config (COMMON): base slot count, cost curve knobs, slot cap, loot weights, feature toggles
 - [ ] Balance pass with a real modpack's curio set
 - [ ] Advancement / first-craft or first-find trigger `[?]`
-- [ ] Recipe `[?]` (craftable, or loot-only?)
+- [x] Recipe — normal (4-slot) loop is craftable: copper ingots (corners) + ender pearls (edges) +
+      amethyst shard (centre). Shiny is loot-only.
 - [ ] Datagen: model, lang check, loot, tags
 - [ ] `en_us` full pass; other locales later
 - [ ] README with screenshots, CurseForge/Modrinth listing text

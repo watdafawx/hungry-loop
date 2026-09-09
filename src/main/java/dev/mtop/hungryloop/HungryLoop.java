@@ -3,6 +3,7 @@ package dev.mtop.hungryloop;
 import dev.mtop.hungryloop.command.HungryLoopCommands;
 import dev.mtop.hungryloop.component.ModDataComponents;
 import dev.mtop.hungryloop.curio.HungryLoopCurio;
+import dev.mtop.hungryloop.loot.ShinyLoopModifier;
 import dev.mtop.hungryloop.menu.ModMenus;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
@@ -36,6 +37,7 @@ public class HungryLoop {
         ModCreativeTabs.REGISTER.register(modBus);
         ModDataComponents.REGISTER.register(modBus);
         ModMenus.REGISTER.register(modBus);
+        ShinyLoopModifier.REGISTER.register(modBus);
 
         modBus.addListener(this::commonSetup);
 

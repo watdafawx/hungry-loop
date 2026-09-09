@@ -56,6 +56,50 @@ public record LoopContents(int baseSlots, int bonusSlots, boolean shiny, int sto
         return Math.min(baseSlots + bonusSlots, MAX_TOTAL_SLOTS);
     }
 
+    public boolean canGrow() {
+        return totalSlots() < MAX_TOTAL_SLOTS;
+    }
+
+    /**
+     * XP levels to add the next slot. Rises steeply with the slots you already have, plus a flat
+     * surcharge per starting slot above the minimum - so a 4-slot loop and an 8-slot shiny converge
+     * on a similar total investment to reach the same size.
+     */
+    public int nextSlotCost() {
+        return slotCost(baseSlots, bonusSlots);
+    }
+
+    public static int slotCost(int baseSlots, int bonusSlots) {
+        int have = baseSlots + bonusSlots;
+        return (int) Math.round(5 * Math.pow(1.7, have - MIN_BASE_SLOTS)) + 3 * (baseSlots - MIN_BASE_SLOTS);
+    }
+
+    /** Progress toward the next slot, 0..1. */
+    public float growthProgress() {
+        return canGrow() ? Math.min(1f, (float) storedXp / nextSlotCost()) : 1f;
+    }
+
+    /**
+     * Bank {@code levels} of experience and spend it on as many new slots as it covers.
+     *
+     * @return the fed loop, or {@code this} unchanged if nothing could be done
+     */
+    public LoopContents feed(int levels) {
+        if (!canGrow() || levels <= 0) return this;
+
+        int banked = storedXp + levels;
+        int base = baseSlots;
+        int bonus = bonusSlots;
+
+        while (base + bonus < MAX_TOTAL_SLOTS) {
+            int cost = slotCost(base, bonus);
+            if (banked < cost) break;
+            banked -= cost;
+            bonus++;
+        }
+        return new LoopContents(base, bonus, shiny, banked, items, selected);
+    }
+
     public boolean loopMode() {
         return selected < 0 || selectedStack().isEmpty();
     }

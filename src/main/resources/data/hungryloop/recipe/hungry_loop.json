@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "group": "hungryloop",
+  "pattern": [
+    "CPC",
+    "PAP",
+    "CPC"
+  ],
+  "key": {
+    "C": "minecraft:copper_ingot",
+    "P": "minecraft:ender_pearl",
+    "A": "minecraft:amethyst_shard"
+  },
+  "result": {
+    "id": "hungryloop:hungry_loop",
+    "count": 1
+  }
+}

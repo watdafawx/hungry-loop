@@ -16,6 +16,10 @@
   "hungryloop.screen.title": "The Hungry Loop",
   "hungryloop.screen.feed": "Feed XP",
 
+  "hungryloop.feed.click": "Click: feed 1 XP level",
+  "hungryloop.feed.shift": "Shift-click: feed enough for the next slot",
+  "hungryloop.feed.have": "You have %s levels",
+
   "key.categories.hungryloop": "The Hungry Loop",
   "key.hungryloop.open": "Open the Hungry Loop",
 
