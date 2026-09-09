@@ -75,7 +75,20 @@ public final class LoopSlotMirror {
     static void onCurioChange(CurioChangeEvent event) {
         if (event.getFrom().getItem() instanceof HungryLoopItem
                 && event.getEntity() instanceof ServerPlayer player) {
-            sync(player, true);
+            // A loop was taken out of a slot. If it was the last one, purge every mirror; otherwise
+            // reconcile against what's left.
+            boolean anyLeft = CuriosApi.getCuriosInventory(player)
+                    .map(h -> !h.findCurios(s -> s.getItem() instanceof HungryLoopItem && !isMirror(s)).isEmpty())
+                    .orElse(false);
+            if (anyLeft) {
+                sync(player, true);
+            } else if (RECONCILING.add(player.getUUID())) {
+                try {
+                    purgeAllMirrors(player);
+                } finally {
+                    RECONCILING.remove(player.getUUID());
+                }
+            }
         }
     }
 
@@ -103,8 +116,17 @@ public final class LoopSlotMirror {
         ICuriosItemHandler handler = CuriosApi.getCuriosInventory(player).orElse(null);
         if (handler == null) return;
 
+        List<SlotResult> loops =
+                handler.findCurios(s -> s.getItem() instanceof HungryLoopItem && !isMirror(s));
+
+        // No loop found. This is either a genuine unequip - handled explicitly by onCurioChange,
+        // which purges every mirror - or a transient blip while Curios rebuilds the inventory
+        // (equipping into a slot type mid-resize). Either way, don't touch the mirrors here: a
+        // reconcile that clears everything and the next that refills it is exactly the flicker.
+        if (loops.isEmpty()) return;
+
         Map<String, List<Want>> wanted = new LinkedHashMap<>();
-        for (SlotResult worn : handler.findCurios(s -> s.getItem() instanceof HungryLoopItem && !isMirror(s))) {
+        for (SlotResult worn : loops) {
             LoopContents data = worn.stack()
                     .getOrDefault(ModDataComponents.LOOP_CONTENTS.get(), LoopContents.DEFAULT);
             boolean loopVisible = data.selfRenders() && slotRenders(handler,
@@ -121,6 +143,20 @@ public final class LoopSlotMirror {
 
         handler.getCurios().forEach((type, stacksHandler) ->
                 mirrorInto(player, type, stacksHandler, wanted.getOrDefault(type, List.of())));
+    }
+
+    /** Wipe every mirror from every curio slot - used when the last loop is unequipped. */
+    private static void purgeAllMirrors(ServerPlayer player) {
+        ICuriosItemHandler handler = CuriosApi.getCuriosInventory(player).orElse(null);
+        if (handler == null) return;
+        handler.getCurios().forEach((type, sh) -> {
+            var stacks = sh.getStacks();
+            for (int i = 0; i < stacks.getSlots(); i++) {
+                if (isMirror(stacks.getStackInSlot(i))) {
+                    stacks.setStackInSlot(i, ItemStack.EMPTY);
+                }
+            }
+        });
     }
 
     private static boolean slotRenders(ICuriosItemHandler handler, String type, int index) {
@@ -176,9 +212,12 @@ public final class LoopSlotMirror {
             int idx = firstMirror + p;
             if (!pending.isEmpty()) {
                 Want want = pending.remove(0);
+                HungryLoop.LOG.info("[mirror] {} slot {} <- {} (was {})", type, idx,
+                        want.stack().getItem(), stacks.getStackInSlot(idx).getItem());
                 stacks.setStackInSlot(idx, mirrorCopy(want.stack()));
                 setRender(player, stacksHandler, type, idx, want.render());
             } else if (isMirror(stacks.getStackInSlot(idx))) {
+                HungryLoop.LOG.info("[mirror] {} slot {} CLEAR", type, idx);
                 stacks.setStackInSlot(idx, ItemStack.EMPTY);
             }
         }
@@ -215,6 +254,15 @@ public final class LoopSlotMirror {
             count++;
         }
         return count;
+    }
+
+    /** Sum of {@link #hiddenSlotCount} across every type - keeps the screen's panel sizing honest. */
+    public static int totalHiddenSlots(ICuriosItemHandler handler) {
+        int total = 0;
+        for (ICurioStacksHandler sh : handler.getCurios().values()) {
+            total += hiddenSlotCount(sh.getStacks());
+        }
+        return total;
     }
 
     private static void purgeStrayMirrors(ServerPlayer player) {
