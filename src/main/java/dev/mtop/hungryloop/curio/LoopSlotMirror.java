@@ -265,20 +265,16 @@ public final class LoopSlotMirror {
      * tick or two after a curio change.
      */
     public static int hiddenSlotCount(top.theillusivec4.curios.api.type.inventory.IDynamicStackHandler stacks) {
+        // Every mirror in the handler, not just the trailing run: mirrorInto always parks them at the
+        // high indices, so this equals the count of real (visible) slots, and it stays right even
+        // while the client is a mirror or two behind mid-equip (a trailing-only count would read 0
+        // the instant the very last mirror hasn't landed yet). CurioSlotMixin's isActive() catches
+        // any straggler that a transient undercount would otherwise leave on screen.
         int count = 0;
-        for (int i = stacks.getSlots() - 1; i >= 0 && isMirror(stacks.getStackInSlot(i)); i--) {
-            count++;
+        for (int i = 0; i < stacks.getSlots(); i++) {
+            if (isMirror(stacks.getStackInSlot(i))) count++;
         }
         return count;
-    }
-
-    /** Sum of {@link #hiddenSlotCount} across every type - keeps the screen's panel sizing honest. */
-    public static int totalHiddenSlots(ICuriosItemHandler handler) {
-        int total = 0;
-        for (ICurioStacksHandler sh : handler.getCurios().values()) {
-            total += hiddenSlotCount(sh.getStacks());
-        }
-        return total;
     }
 
     private static void purgeStrayMirrors(ServerPlayer player) {
