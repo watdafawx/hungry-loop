@@ -57,6 +57,11 @@ artifacts-neoforge-13.2.5.jar
 
 `scripts/fetch-testmods.ps1` re-fetches the Modrinth ones. Versions must match `gradle.properties`.
 
+**`apothic_compats` is deliberately not in `build.gradle`.** It's a datapack-only mod — it ships
+Apotheosis datapacks for ~30 mods (curio items among them) and exposes no API we call. It only needs
+to be *present at runtime* so Apotheosis will affix and socket curio items; nothing links against
+it. Keep it in `run/mods/`, keep it out of the dependency block.
+
 To test optional-dependency behaviour, **remove** mods from `run/mods/` and relaunch — the mod must
 still load. This is the only way to catch a violation; it always compiles either way.
 

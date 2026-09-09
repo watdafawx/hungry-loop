@@ -16,10 +16,12 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started · `[?]` needs a de
 - [x] `neoforge.mods.toml` — curios `required`, apotheosis/relics/artifacts `optional`
 - [x] Main `@Mod` class, item + creative-tab registration, placeholder item model + lang
 - [x] Test-client mod jars in `run/mods/` (copied from foxs-tweaks + Artifacts pulled fresh)
+- [x] `apothic_compats` in `run/mods/` — datapack-only mod, no build.gradle entry needed (we never
+      call its API); it is what teaches Apotheosis to affix/socket curio items. See Phase 3.
 - [x] `scripts/fetch-testmods.ps1`
-- [ ] First green build — `build.bat build`
+- [x] First green build — `build.bat build` (`BUILD SUCCESSFUL`, 2026-09-09)
 - [ ] First dev client launch — `build.bat runClient`, confirm the loop appears in its creative tab
-- [ ] `git init` + initial commit
+- [x] `git init` + initial commit
 - [ ] **Real item texture** — pixel-art it from the reference ring art (currently a generated
       16×16 placeholder). Path: `src/main/resources/assets/hungryloop/textures/item/hungry_loop.png`.
       Also want a distinct "shiny" variant/overlay for loot loops.
@@ -62,8 +64,10 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started · `[?]` needs a de
 - [ ] Slot-gated affixes: an affix that only fires "as a ring" must see the sub-slot as a ring —
       make Apotheosis' slot/`LootCategory` lookups resolve against the sub-slot type, not the loop
 - [ ] Apotheosis `SocketHelper` / affix bonus application driven from the loop's forwarding
-- [ ] Check XP-drop / loot affixes actually fire (needs `apothic_compats` for curio `LootCategory`,
-      see AGENTS.md known-bug note)
+- [ ] Check XP-drop / loot affixes actually fire. Requires `apothic_compats` in the pack: it ships
+      the datapack that gives curio items a `LootCategory`, without which Apotheosis refuses to
+      affix or socket any of them. It's a runtime-only datapack mod — nothing to compile against.
+      Known load-order parse bug on ~11 of its entries (harmless, see AGENTS.md).
 - [ ] `client/compat` — show contained-item affixes in the loop tooltip / overlay
 
 ## Phase 4 — Relics & Artifacts support
