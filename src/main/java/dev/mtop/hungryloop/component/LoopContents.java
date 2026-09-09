@@ -10,6 +10,7 @@ import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * The entire state of a Hungry Loop, stored as a data component on the stack.
@@ -186,6 +187,41 @@ public record LoopContents(int baseSlots, int bonusSlots, int capBonus, boolean 
             list.set(slot, items.get(slot));
         }
         return list;
+    }
+
+    // --- equality ---------------------------------------------------------------------------
+
+    /*
+     * ItemStack has no value equals(), so the record's generated equals() would compare the items
+     * list by reference. That matters a lot here: Curios' tick loop does
+     * {@code ItemStack.matches(loop, previousLoopCopy)} every tick, and a copied component means a
+     * new list of new ItemStack objects - so the loop would look changed every single tick, and
+     * Curios would tear down and rebuild every slot it grants each tick. Compare the items by value.
+     */
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof LoopContents other)) return false;
+        if (baseSlots != other.baseSlots || bonusSlots != other.bonusSlots || capBonus != other.capBonus
+                || shiny != other.shiny || storedXp != other.storedXp || selected != other.selected
+                || renderMask != other.renderMask || selfRenders != other.selfRenders) {
+            return false;
+        }
+        if (items.size() != other.items.size()) return false;
+        for (int i = 0; i < items.size(); i++) {
+            if (!ItemStack.matches(items.get(i), other.items.get(i))) return false;
+        }
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int h = Objects.hash(baseSlots, bonusSlots, capBonus, shiny, storedXp, selected, renderMask,
+                selfRenders, items.size());
+        for (ItemStack s : items) {
+            h = 31 * h + ItemStack.hashItemAndComponents(s);
+        }
+        return h;
     }
 
     public LoopContents withItems(List<ItemStack> newItems) {
