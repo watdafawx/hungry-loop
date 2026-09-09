@@ -1,0 +1,27 @@
+{
+  "item.hungryloop.hungry_loop": "The Hungry Loop",
+
+  "itemGroup.hungryloop": "The Hungry Loop",
+
+  "hungryloop.tooltip.slots": "%s/%s slots",
+  "hungryloop.tooltip.shiny": "Shiny — forged with %s slots",
+  "hungryloop.tooltip.xp_to_next": "%s XP levels to next slot",
+  "hungryloop.tooltip.max_slots": "Fully fed — no more slots can be added",
+  "hungryloop.tooltip.open_hint": "Press %s or right-click to open",
+  "hungryloop.tooltip.contents": "Holds:",
+  "hungryloop.tooltip.empty": "Empty",
+
+  "hungryloop.screen.title": "The Hungry Loop",
+  "hungryloop.screen.feed": "Feed XP",
+
+  "hungryloop.key.open": "Open the Hungry Loop",
+  "hungryloop.key.category": "The Hungry Loop",
+
+  "hungryloop.message.slot_added": "The loop swallows your experience and widens. (%s/%s)",
+  "hungryloop.message.not_enough_xp": "The loop hungers for %s more XP levels.",
+  "hungryloop.message.full": "The loop is sated. It cannot hold any more.",
+
+  "commands.hungryloop.gen.success": "Generated %s curio item(s).",
+  "commands.hungryloop.gen.no_curios": "No curio items are registered.",
+  "commands.hungryloop.give.success": "Gave a Hungry Loop with %s slots."
+}

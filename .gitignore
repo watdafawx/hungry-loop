@@ -1,0 +1,14 @@
+.gradle/
+build/
+run/
+run-server/
+src/generated/resources/.cache/
+.idea/
+*.iml
+.vscode/
+toolchain/
+build-log.txt
+*.log
+
+# Third-party mod jars for the dev client - not ours to commit. Fetch with scripts/fetch-testmods.
+run/mods/

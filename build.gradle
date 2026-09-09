@@ -1,0 +1,145 @@
+plugins {
+    id 'java'
+    id 'net.neoforged.moddev' version '2.0.146'
+}
+
+version = mod_version
+group = mod_group_id
+
+base {
+    archivesName = "${mod_id}-neoforge-${minecraft_version}"
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+}
+
+neoForge {
+    version = neo_version
+
+    parchment {
+        minecraftVersion = parchment_minecraft_version
+        mappingsVersion = parchment_mappings_version
+    }
+
+    // src/main/resources/META-INF/accesstransformer.cfg is picked up automatically when it exists.
+
+    runs {
+        client {
+            client()
+            gameDirectory = file('run')
+            systemProperty 'neoforge.enabledGameTestNamespaces', mod_id
+        }
+        server {
+            server()
+            gameDirectory = file('run-server')
+            programArgument '--nogui'
+        }
+        data {
+            data()
+            programArguments.addAll '--mod', mod_id,
+                    '--all',
+                    '--output', file('src/generated/resources/').absolutePath,
+                    '--existing', file('src/main/resources/').absolutePath
+        }
+        configureEach {
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            logLevel = org.slf4j.event.Level.DEBUG
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+sourceSets.main.resources { srcDir 'src/generated/resources' }
+
+repositories {
+    mavenCentral()
+
+    // Shadows-of-Fire's own maven - Apotheosis, Placebo, ApothicAttributes.
+    maven { url "https://maven.shadowsoffire.dev/releases" }
+
+    // TheIllusiveC4's own maven - Curios (has the transitive info the Modrinth mirror lacks).
+    maven { url "https://maven.theillusivec4.top/" }
+
+    // Architectury's own maven, scoped so it is never asked to resolve anything else.
+    maven {
+        url "https://maven.architectury.dev"
+        content { includeGroup "dev.architectury" }
+    }
+
+    // Modrinth mirrors every mod hosted there as a Maven repo (group "maven.modrinth", artifact is
+    // the slug, version is the Modrinth *version id*). Relics, Artifacts and OctoLib have no maven
+    // of their own. Scoped for the same reason as Architectury's.
+    maven {
+        url "https://api.modrinth.com/maven"
+        content { includeGroup "maven.modrinth" }
+    }
+}
+
+dependencies {
+    // --- Hard requirement -------------------------------------------------------------------------
+    // Curios provides the slot-type registry and the ICurio/ICuriosItemHandler contracts the whole
+    // mod is built on. This is the one dependency the shipped jar declares as "required".
+    implementation "top.theillusivec4.curios:curios-neoforge:${curios_version}"
+
+    // --- Optional integrations -------------------------------------------------------------------
+    // compileOnly: none of these may leak into the shipped jar's runtime requirements. At runtime,
+    // if the real mod is installed it is what gets loaded; if not, the integration class stays
+    // dormant behind a ModList.isLoaded(...) guard. neoforge.mods.toml lists them as "optional" by
+    // hand. NeoForge 1.21.1 mod jars ship in Mojang mappings, so a production jar works as a
+    // compile dependency with no remapping.
+    //
+    // FML's mod discovery only scans run/mods and jar-in-jar, never the general runtime classpath,
+    // so these do NOT load in the dev client on their own - drop the matching jars into run/mods by
+    // hand (they are already there, copied from foxs-tweaks). See AGENTS.md > Local setup.
+    compileOnly "dev.shadowsoffire:Apotheosis:${minecraft_version}-${apotheosis_version}"
+    compileOnly "dev.shadowsoffire:Placebo:${minecraft_version}-${placebo_version}"
+    compileOnly "dev.shadowsoffire:ApothicAttributes:${minecraft_version}-${apothic_attributes_version}"
+    compileOnly "dev.architectury:architectury-neoforge:${architectury_version}"
+    compileOnly "maven.modrinth:relics-mod:${relics_version}"
+    compileOnly "maven.modrinth:artifacts:${artifacts_version}"
+    compileOnly "maven.modrinth:shatterbyte-lib:${octolib_version}" // OctoLib (Relics' dependency)
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 21
+}
+
+tasks.named('processResources', ProcessResources).configure {
+    def expandProps = [
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_version            : mod_version,
+            mod_license            : mod_license,
+            mod_authors            : mod_authors,
+            mod_group_id           : mod_group_id,
+            neo_version            : neo_version,
+            minecraft_version      : minecraft_version,
+            minecraft_version_range: minecraft_version_range,
+            loader_version_range   : loader_version_range,
+            curios_version         : curios_version,
+    ]
+    inputs.properties(expandProps)
+    filesMatching(['META-INF/neoforge.mods.toml', 'pack.mcmeta']) {
+        expand expandProps
+    }
+}
+
+jar {
+    manifest {
+        attributes([
+                'Specification-Title'   : mod_id,
+                'Specification-Vendor'  : mod_authors,
+                'Specification-Version' : '1',
+                'Implementation-Title'  : mod_name,
+                'Implementation-Version': mod_version,
+                'Implementation-Vendor' : mod_authors
+        ])
+    }
+}
