@@ -8,6 +8,7 @@ import dev.mtop.hungryloop.menu.ModMenus;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import org.slf4j.Logger;
@@ -33,6 +34,8 @@ public class HungryLoop {
     public static final String ARTIFACTS = "artifacts";
 
     public HungryLoop(IEventBus modBus, ModContainer container) {
+        container.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
+
         ModItems.REGISTER.register(modBus);
         ModCreativeTabs.REGISTER.register(modBus);
         ModDataComponents.REGISTER.register(modBus);

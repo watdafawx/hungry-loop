@@ -56,7 +56,7 @@ public final class HungryLoopCommands {
                 .then(Commands.literal("give")
                         .executes(ctx -> give(ctx.getSource(), LoopContents.MIN_BASE_SLOTS, false))
                         .then(Commands.argument("slots", IntegerArgumentType.integer(
-                                        LoopContents.MIN_BASE_SLOTS, LoopContents.MAX_TOTAL_SLOTS))
+                                        LoopContents.MIN_BASE_SLOTS, 24))
                                 .executes(ctx -> give(ctx.getSource(),
                                         IntegerArgumentType.getInteger(ctx, "slots"), false))
                                 .then(Commands.argument("shiny", BoolArgumentType.bool())
@@ -81,10 +81,11 @@ public final class HungryLoopCommands {
 
         int base = Math.min(slots, LoopContents.MAX_SHINY_BASE_SLOTS);
         int bonus = slots - base;
+        int cap = Math.max(LoopContents.DEFAULT_CAP, slots);
 
         ItemStack loop = new ItemStack(ModItems.HUNGRY_LOOP.get());
         loop.set(ModDataComponents.LOOP_CONTENTS.get(),
-                new LoopContents(base, bonus, shiny, 0, List.of(), LoopContents.LOOP_MODE));
+                new LoopContents(base, bonus, cap, shiny, 0, List.of(), LoopContents.LOOP_MODE));
 
         if (!player.getInventory().add(loop)) {
             player.drop(loop, false);

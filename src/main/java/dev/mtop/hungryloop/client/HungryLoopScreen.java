@@ -12,28 +12,25 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.Slot;
 
 /**
- * The loop's screen. Drawn procedurally - obsidian panel, copper bevel, an iridescent divider that
- * echoes the ring band, a grid of sub-slots (real + dimmed "future" slots up to the cap), and an
- * XP-feed bar + button for growing the loop.
+ * The loop's screen. The sub-slots trace a snake constellation - a serpentine path with a gentle
+ * undulation - and faint lines join every point on the path (occupied and not) so the shape reads
+ * even on an empty loop.
  */
 public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
 
-    // palette
-    private static final int PANEL_TOP = 0xFF221B2B;
-    private static final int PANEL_BOTTOM = 0xFF181320;
-    private static final int BLACK = 0xFF000000;
+    private static final int PANEL_TOP = 0xFF241C30;
+    private static final int PANEL_BOTTOM = 0xFF15101E;
     private static final int COPPER = 0xFFB56A38;
     private static final int COPPER_LIGHT = 0xFFDD8B52;
     private static final int COPPER_DARK = 0xFF6E3F22;
     private static final int WELL = 0xFF0C0912;
     private static final int WELL_EDGE = 0xFF39303F;
-    private static final int GHOST_WELL = 0xFF15111C;
-    private static final int GHOST_MARK = 0xFF2E2740;
+    private static final int NODE_FUTURE = 0xFF2C2440;
+    private static final int LINE_REAL = 0x66C89A6E;
+    private static final int LINE_FUTURE = 0x2A8A7FA8;
     private static final int XP_FILL_TOP = 0xFF8FE84A;
     private static final int XP_FILL_BOTTOM = 0xFF4E9C25;
     private static final int SHINY = 0xFF6FE0FF;
-
-    private static final int[] IRIDESCENT = {0xFFD0605A, 0xFFE4E8F2, 0xFF9FC8F0};
 
     private int xpBarY;
     private int feedX, feedY, feedW, feedH;
@@ -50,11 +47,11 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
         super.init();
         this.titleLabelX = 8;
         this.titleLabelY = 7;
-        this.xpBarY = HungryLoopMenu.LOOP_ORIGIN_Y + 2 * 18 + 8;
-        this.feedW = 64;
+        this.xpBarY = HungryLoopMenu.PLAYER_INV_Y - 34;
+        this.feedW = 72;
         this.feedH = 16;
         this.feedX = leftPos + (imageWidth - feedW) / 2;
-        this.feedY = topPos + xpBarY + 12;
+        this.feedY = topPos + xpBarY + 11;
     }
 
     @Override
@@ -62,49 +59,49 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
         int x = leftPos;
         int y = topPos;
         LoopContents data = menu.loopData();
+        int total = menu.loopSlotCount();
+        int cap = data.slotCap();
         int accent = data.shiny() ? SHINY : COPPER;
         int accentLight = data.shiny() ? SHINY : COPPER_LIGHT;
         int accentDark = data.shiny() ? 0xFF3C7C8C : COPPER_DARK;
 
-        // panel + bevel (no drop shadow)
         g.fillGradient(x, y, x + imageWidth, y + imageHeight, PANEL_TOP, PANEL_BOTTOM);
         bevel(g, x, y, imageWidth, imageHeight, accent, accentLight, accentDark);
-
-        // title-bar underline
         g.fill(x + 6, y + 18, x + imageWidth - 6, y + 19, accentDark);
 
-        // slot count badge, top-right
-        String count = data.totalSlots() + " / " + LoopContents.MAX_TOTAL_SLOTS;
+        String count = data.totalSlots() + " / " + cap;
         g.drawString(font, count, x + imageWidth - 8 - font.width(count), y + 7,
                 data.shiny() ? SHINY : 0xFFE7C9A6, false);
 
-        // loop grid: real wells, then faint "future" wells up to the cap
-        int total = menu.loopSlotCount();
-        for (int i = 0; i < LoopContents.MAX_TOTAL_SLOTS; i++) {
+        // constellation lines through every point on the path
+        for (int i = 0; i + 1 < cap; i++) {
+            int[] a = HungryLoopMenu.loopSlotCenter(i);
+            int[] b = HungryLoopMenu.loopSlotCenter(i + 1);
+            boolean real = i + 1 < total;
+            line(g, x + a[0], y + a[1], x + b[0], y + b[1], real ? LINE_REAL : LINE_FUTURE);
+        }
+
+        // nodes
+        for (int i = 0; i < cap; i++) {
             int sx = x + HungryLoopMenu.loopSlotX(i);
             int sy = y + HungryLoopMenu.loopSlotY(i);
             if (i < total) {
                 well(g, sx, sy, WELL, WELL_EDGE);
             } else {
-                // faint outline only - reads as "room to grow", not a real slot
-                g.fill(sx, sy, sx + 16, sy + 1, GHOST_WELL);
-                g.fill(sx, sy + 15, sx + 16, sy + 16, GHOST_WELL);
-                g.fill(sx, sy, sx + 1, sy + 16, GHOST_WELL);
-                g.fill(sx + 15, sy, sx + 16, sy + 16, GHOST_WELL);
-                g.drawCenteredString(font, "+", sx + 8, sy + 4, GHOST_MARK);
+                g.fill(sx + 5, sy + 5, sx + 11, sy + 11, NODE_FUTURE);
+                g.drawCenteredString(font, "+", sx + 8, sy + 4, 0xFF433A55);
             }
         }
-
-        // iridescent divider under the grid
-        int divY = y + HungryLoopMenu.LOOP_ORIGIN_Y + 2 * 18 + 1;
-        for (int px = x + 7; px < x + imageWidth - 7; px += 3) {
-            g.fill(px, divY, px + 2, divY + 1, IRIDESCENT[((px - x) / 3) % IRIDESCENT.length]);
+        // head marker on slot 0
+        if (cap > 0) {
+            int[] h = HungryLoopMenu.loopSlotCenter(0);
+            g.fill(x + h[0] - 1, y + h[1] - 10, x + h[0] + 1, y + h[1] - 8, accent);
         }
 
         // XP bar
         int barX = x + 8;
         int barW = imageWidth - 16;
-        g.fill(barX - 1, y + xpBarY - 1, barX + barW + 1, y + xpBarY + 8, BLACK);
+        g.fill(barX - 1, y + xpBarY - 1, barX + barW + 1, y + xpBarY + 8, 0xFF000000);
         g.fill(barX, y + xpBarY, barX + barW, y + xpBarY + 7, WELL);
         int fillW = Math.round(barW * data.growthProgress());
         if (fillW > 0) {
@@ -112,29 +109,41 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
         }
         String barText = data.canGrow()
                 ? data.storedXp() + " / " + data.nextSlotCost() + " XP levels"
-                : "Fully fed";
+                : (data.canRaiseCap(24) ? "Feed a Nether Star to widen" : "Fully fed");
         g.drawCenteredString(font, barText, x + imageWidth / 2, y + xpBarY - 1, 0xFFFFFFFF);
 
         // feed button
-        if (data.canGrow()) {
-            boolean hover = mouseX >= feedX && mouseX < feedX + feedW && mouseY >= feedY && mouseY < feedY + feedH;
-            g.fill(feedX - 1, feedY - 1, feedX + feedW + 1, feedY + feedH + 1, BLACK);
-            g.fillGradient(feedX, feedY, feedX + feedW, feedY + feedH,
-                    hover ? 0xFF3A2E22 : 0xFF2A2018, hover ? 0xFF241C14 : 0xFF1C150F);
-            bevel(g, feedX, feedY, feedW, feedH, COPPER, COPPER_LIGHT, COPPER_DARK);
-            g.drawCenteredString(font, "Feed XP", feedX + feedW / 2, feedY + 4,
-                    hover ? 0xFFFFE9C9 : 0xFFE7C9A6);
-        }
+        boolean hover = mouseX >= feedX && mouseX < feedX + feedW && mouseY >= feedY && mouseY < feedY + feedH;
+        g.fill(feedX - 1, feedY - 1, feedX + feedW + 1, feedY + feedH + 1, 0xFF000000);
+        g.fillGradient(feedX, feedY, feedX + feedW, feedY + feedH,
+                hover ? 0xFF3A2E22 : 0xFF2A2018, hover ? 0xFF241C14 : 0xFF1C150F);
+        bevel(g, feedX, feedY, feedW, feedH, COPPER, COPPER_LIGHT, COPPER_DARK);
+        g.drawCenteredString(font, "Feed", feedX + feedW / 2, feedY + 4, hover ? 0xFFFFE9C9 : 0xFFE7C9A6);
 
         // player inventory wells
-        for (Slot slot : menu.slots) {
-            if (menu.slots.indexOf(slot) < total) continue;
+        for (int s = total; s < menu.slots.size(); s++) {
+            Slot slot = menu.slots.get(s);
             well(g, x + slot.x, y + slot.y, WELL, WELL_EDGE);
         }
     }
 
+    private static void line(GuiGraphics g, int x1, int y1, int x2, int y2, int color) {
+        int dx = Math.abs(x2 - x1);
+        int dy = Math.abs(y2 - y1);
+        int sx = x1 < x2 ? 1 : -1;
+        int sy = y1 < y2 ? 1 : -1;
+        int err = dx - dy;
+        while (true) {
+            g.fill(x1, y1, x1 + 1, y1 + 1, color);
+            if (x1 == x2 && y1 == y2) break;
+            int e2 = err << 1;
+            if (e2 > -dy) { err -= dy; x1 += sx; }
+            if (e2 < dx) { err += dx; y1 += sy; }
+        }
+    }
+
     private static void well(GuiGraphics g, int x, int y, int fill, int edge) {
-        g.fill(x - 1, y - 1, x + 17, y + 17, BLACK);
+        g.fill(x - 1, y - 1, x + 17, y + 17, 0xFF000000);
         g.fill(x, y, x + 16, y + 16, fill);
         g.fill(x, y, x + 16, y + 1, edge);
         g.fill(x, y, x + 1, y + 16, edge);
@@ -151,9 +160,9 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (button == 0 && menu.loopData().canGrow()
+        if (button == 0
                 && mouseX >= feedX && mouseX < feedX + feedW && mouseY >= feedY && mouseY < feedY + feedH) {
-            int id = Screen.hasShiftDown() ? HungryLoopMenu.BUTTON_FEED_SLOT : HungryLoopMenu.BUTTON_FEED_ONE;
+            int id = Screen.hasShiftDown() ? HungryLoopMenu.BUTTON_FEED_ALL : HungryLoopMenu.BUTTON_FEED_ONE;
             if (minecraft != null && minecraft.gameMode != null) {
                 minecraft.gameMode.handleInventoryButtonClick(menu.containerId, id);
                 minecraft.getSoundManager().play(net.minecraft.client.resources.sounds.SimpleSoundInstance
@@ -166,11 +175,11 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
 
     @Override
     protected void renderTooltip(GuiGraphics g, int mouseX, int mouseY) {
-        if (menu.loopData().canGrow()
-                && mouseX >= feedX && mouseX < feedX + feedW && mouseY >= feedY && mouseY < feedY + feedH) {
+        if (mouseX >= feedX && mouseX < feedX + feedW && mouseY >= feedY && mouseY < feedY + feedH) {
             g.renderComponentTooltip(font, java.util.List.of(
                     Component.translatable("hungryloop.feed.click").withStyle(ChatFormatting.GREEN),
                     Component.translatable("hungryloop.feed.shift").withStyle(ChatFormatting.GRAY),
+                    Component.translatable("hungryloop.feed.star").withStyle(ChatFormatting.LIGHT_PURPLE),
                     Component.translatable("hungryloop.feed.have", menu.playerXpLevels()).withStyle(ChatFormatting.DARK_GRAY)
             ), mouseX, mouseY);
             return;

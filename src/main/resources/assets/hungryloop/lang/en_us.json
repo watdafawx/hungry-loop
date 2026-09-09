@@ -17,7 +17,8 @@
   "hungryloop.screen.feed": "Feed XP",
 
   "hungryloop.feed.click": "Click: feed 1 XP level",
-  "hungryloop.feed.shift": "Shift-click: feed enough for the next slot",
+  "hungryloop.feed.shift": "Shift-click: feed every XP level you have",
+  "hungryloop.feed.star": "Click holding a Nether Star: widen the loop's cap",
   "hungryloop.feed.have": "You have %s levels",
 
   "key.categories.hungryloop": "The Hungry Loop",

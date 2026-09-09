@@ -24,14 +24,19 @@ import top.theillusivec4.curios.api.CuriosApi;
  */
 public class HungryLoopMenu extends AbstractContainerMenu {
 
-    public static final int LOOP_SLOTS_PER_ROW = 6;
-    public static final int PANEL_WIDTH = 176;
-    public static final int PANEL_HEIGHT = 192;
-    public static final int LOOP_ORIGIN_Y = 20;
-    public static final int PLAYER_INV_Y = 108;
+    public static final int PANEL_WIDTH = 218;
+    public static final int PANEL_HEIGHT = 246;
+    public static final int PLAYER_INV_Y = 162;
 
     public static final int BUTTON_FEED_ONE = 0;
-    public static final int BUTTON_FEED_SLOT = 1;
+    public static final int BUTTON_FEED_ALL = 1;
+
+    // Snake-constellation layout: a serpentine path with a gentle undulation.
+    private static final int SNAKE_COLS = 6;
+    private static final int SNAKE_X0 = 18;
+    private static final int SNAKE_DX = 30;
+    private static final int SNAKE_Y0 = 26;
+    private static final int SNAKE_DY = 24;
 
     private final Player player;
     private final LoopLocator locator;
@@ -62,14 +67,22 @@ public class HungryLoopMenu extends AbstractContainerMenu {
         addPlayerSlots(playerInv);
     }
 
-    /** Fixed 6-column grid, left-to-right; real and "future" slots always line up. */
+    /** Top-left corner of sub-slot {@code index} along the snake path. */
     public static int loopSlotX(int index) {
-        int col = index % LOOP_SLOTS_PER_ROW;
-        return (PANEL_WIDTH - LOOP_SLOTS_PER_ROW * 18) / 2 + col * 18 + 1;
+        int row = index / SNAKE_COLS;
+        int col = index % SNAKE_COLS;
+        int eff = row % 2 == 0 ? col : SNAKE_COLS - 1 - col; // serpentine
+        return SNAKE_X0 + eff * SNAKE_DX + (int) Math.round(Math.cos(index * 0.5) * 2);
     }
 
     public static int loopSlotY(int index) {
-        return LOOP_ORIGIN_Y + (index / LOOP_SLOTS_PER_ROW) * 18;
+        int row = index / SNAKE_COLS;
+        return SNAKE_Y0 + row * SNAKE_DY + (int) Math.round(Math.sin(index * 0.8) * 3);
+    }
+
+    /** Centre point of sub-slot {@code index} (for drawing the constellation lines through it). */
+    public static int[] loopSlotCenter(int index) {
+        return new int[]{loopSlotX(index) + 8, loopSlotY(index) + 8};
     }
 
     private void addLoopSlots() {
@@ -89,13 +102,14 @@ public class HungryLoopMenu extends AbstractContainerMenu {
     }
 
     private void addPlayerSlots(Inventory inv) {
+        int x0 = (PANEL_WIDTH - 9 * 18) / 2;
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
-                addSlot(new Slot(inv, col + row * 9 + 9, 8 + col * 18, PLAYER_INV_Y + row * 18));
+                addSlot(new Slot(inv, col + row * 9 + 9, x0 + col * 18, PLAYER_INV_Y + row * 18));
             }
         }
         for (int col = 0; col < 9; col++) {
-            addSlot(new Slot(inv, col, 8 + col * 18, PLAYER_INV_Y + 58));
+            addSlot(new Slot(inv, col, x0 + col * 18, PLAYER_INV_Y + 58));
         }
     }
 
@@ -133,7 +147,10 @@ public class HungryLoopMenu extends AbstractContainerMenu {
         return locator.resolve(who).getItem() instanceof HungryLoopItem;
     }
 
-    /** Button 0: feed one XP level. Button 1: feed as many levels as the next slot needs. */
+    /**
+     * Button 0: if the cursor holds Nether Stars, spend one to raise the slot cap; otherwise feed
+     * one XP level. Button 1 (shift): feed every XP level you have.
+     */
     @Override
     public boolean clickMenuButton(Player who, int buttonId) {
         if (who.level().isClientSide) return true;
@@ -142,12 +159,22 @@ public class HungryLoopMenu extends AbstractContainerMenu {
         if (!(loop.getItem() instanceof HungryLoopItem)) return false;
 
         LoopContents data = loop.getOrDefault(ModDataComponents.LOOP_CONTENTS.get(), LoopContents.DEFAULT);
+        int absoluteMax = dev.mtop.hungryloop.Config.ABSOLUTE_MAX_SLOTS.get();
+
+        ItemStack carried = getCarried();
+        if (buttonId == 0 && carried.is(net.minecraft.world.item.Items.NETHER_STAR) && data.canRaiseCap(absoluteMax)) {
+            carried.shrink(1);
+            LoopContents raised = data.raiseCap(dev.mtop.hungryloop.Config.SLOTS_PER_STAR.get(), absoluteMax);
+            loop.set(ModDataComponents.LOOP_CONTENTS.get(), raised);
+            who.level().playSound(null, who.blockPosition(), net.minecraft.sounds.SoundEvents.RESPAWN_ANCHOR_CHARGE,
+                    net.minecraft.sounds.SoundSource.PLAYERS, 0.5f, 1.6f);
+            broadcastChanges();
+            return true;
+        }
+
         if (!data.canGrow() || who.experienceLevel <= 0) return false;
 
-        int need = data.nextSlotCost() - data.storedXp();
-        int feed = Math.min(who.experienceLevel, buttonId == 1 ? Math.max(1, need) : 1);
-        if (feed <= 0) return false;
-
+        int feed = buttonId == 1 ? who.experienceLevel : 1;
         who.giveExperienceLevels(-feed);
         LoopContents fed = data.feed(feed);
         loop.set(ModDataComponents.LOOP_CONTENTS.get(), fed);
@@ -155,8 +182,7 @@ public class HungryLoopMenu extends AbstractContainerMenu {
         if (fed.totalSlots() > data.totalSlots() && who instanceof ServerPlayer sp) {
             who.level().playSound(null, who.blockPosition(), net.minecraft.sounds.SoundEvents.PLAYER_LEVELUP,
                     net.minecraft.sounds.SoundSource.PLAYERS, 0.6f, 1.4f);
-            // Reopen after the tick so the grown menu's slot list is built cleanly, not mid-click.
-            sp.server.execute(() -> open(sp, locator));
+            sp.server.execute(() -> open(sp, locator)); // reopen after the tick for the new slots
         } else {
             broadcastChanges();
         }
