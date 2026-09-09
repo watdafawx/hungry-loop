@@ -111,8 +111,12 @@ public final class LoopSlotMirror {
     /**
      * Mirrors {@code desired} into this type's <em>trailing</em> slots and nowhere else. Keeping the
      * mirrors packed at the high indices is what lets the Curios screen hide them by simply trimming
-     * the slot count ({@link #hiddenSlotCount}). A slot already holding the right mirror is left
-     * untouched so unrelated equipped items don't blip when the loop's contents change.
+     * the slot count ({@link #hiddenSlotCount}).
+     *
+     * <p>A trailing slot that already holds a mirror of a still-wanted item type is left completely
+     * alone - we only match on the item, not its data. Relics/Artifacts/Apotheosis mutate the live
+     * mirror stack in place (cooldowns, energy, ...), so rewriting it from the loop's stored copy
+     * every sync would wipe that state and make the slot flicker.
      */
     private static void mirrorInto(ServerPlayer player, String type, ICurioStacksHandler stacksHandler,
                                    List<Want> desired) {
@@ -129,15 +133,33 @@ public final class LoopSlotMirror {
         int k = Math.min(desired.size(), claimable);
         int firstMirror = total - k;
 
-        // Fill the last k slots with the wanted mirrors, reusing a slot that already matches.
+        List<Want> pending = new ArrayList<>(desired.subList(0, k));
+
+        // Pass 1: keep a trailing slot whose mirror still matches a wanted item (by item, not data).
+        boolean[] filled = new boolean[k];
         for (int p = 0; p < k; p++) {
-            int idx = firstMirror + p;
-            Want want = desired.get(p);
-            ItemStack mirror = mirrorCopy(want.stack());
-            if (!ItemStack.matches(stacks.getStackInSlot(idx), mirror)) {
-                stacks.setStackInSlot(idx, mirror);
+            ItemStack cur = stacks.getStackInSlot(firstMirror + p);
+            if (!isMirror(cur)) continue;
+            for (int w = 0; w < pending.size(); w++) {
+                if (ItemStack.isSameItem(cur, pending.get(w).stack())) {
+                    setRender(player, stacksHandler, type, firstMirror + p, pending.remove(w).render());
+                    filled[p] = true;
+                    break;
+                }
             }
-            setRender(player, stacksHandler, type, idx, want.render());
+        }
+
+        // Pass 2: fill the trailing slots we didn't keep - a fresh mirror, or empty if nothing's left.
+        for (int p = 0; p < k; p++) {
+            if (filled[p]) continue;
+            int idx = firstMirror + p;
+            if (!pending.isEmpty()) {
+                Want want = pending.remove(0);
+                stacks.setStackInSlot(idx, mirrorCopy(want.stack()));
+                setRender(player, stacksHandler, type, idx, want.render());
+            } else if (isMirror(stacks.getStackInSlot(idx))) {
+                stacks.setStackInSlot(idx, ItemStack.EMPTY);
+            }
         }
 
         // Anything mirror-marked outside that trailing block is stale - clear it.
