@@ -25,6 +25,9 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Keeps the real Curios slots the loop grants filled with the loop's contents, as marked mirror
@@ -39,6 +42,15 @@ import java.util.Map;
 public final class LoopSlotMirror {
 
     private static final int SYNC_INTERVAL = 3;
+
+    /**
+     * Players whose mirrors are being reconciled right now. Writing a mirror stack makes Curios
+     * recompute slot modifiers, which fires {@link SlotModifiersUpdatedEvent} again mid-sync; the
+     * open Curios screen's {@code setPage} does the same. Without this guard those re-entrant calls
+     * storm each other and the granted slots flicker. Any reconcile we skip is picked up by the
+     * next tick sync.
+     */
+    private static final Set<UUID> RECONCILING = ConcurrentHashMap.newKeySet();
 
     private record Want(ItemStack stack, boolean render) {}
 
@@ -79,6 +91,15 @@ public final class LoopSlotMirror {
     }
 
     public static void sync(ServerPlayer player, boolean force) {
+        if (!RECONCILING.add(player.getUUID())) return; // already reconciling - avoid the feedback storm
+        try {
+            reconcile(player);
+        } finally {
+            RECONCILING.remove(player.getUUID());
+        }
+    }
+
+    private static void reconcile(ServerPlayer player) {
         ICuriosItemHandler handler = CuriosApi.getCuriosInventory(player).orElse(null);
         if (handler == null) return;
 
@@ -188,22 +209,12 @@ public final class LoopSlotMirror {
      * hook before this runs; on the client they arrive with Curios' stack sync and this converges a
      * tick or two after a curio change.
      */
-    public static int hiddenSlotCount(ICurioStacksHandler stacksHandler) {
-        var stacks = stacksHandler.getStacks();
+    public static int hiddenSlotCount(top.theillusivec4.curios.api.type.inventory.IDynamicStackHandler stacks) {
         int count = 0;
         for (int i = stacks.getSlots() - 1; i >= 0 && isMirror(stacks.getStackInSlot(i)); i--) {
             count++;
         }
         return count;
-    }
-
-    /** Total hidden (mirror) slots across every type - used to keep the screen's panel sizing honest. */
-    public static int totalHiddenSlots(ICuriosItemHandler handler) {
-        int total = 0;
-        for (ICurioStacksHandler sh : handler.getCurios().values()) {
-            total += hiddenSlotCount(sh);
-        }
-        return total;
     }
 
     private static void purgeStrayMirrors(ServerPlayer player) {
@@ -219,7 +230,10 @@ public final class LoopSlotMirror {
     }
 
     public static boolean isMirror(ItemStack stack) {
-        return stack.getOrDefault(ModDataComponents.LOOP_MANAGED.get(), false);
+        // A real loop must never count as a mirror even if it somehow carries the marker - clearing
+        // it out of its slot would strip its grants and the whole thing flickers.
+        return !(stack.getItem() instanceof HungryLoopItem)
+                && stack.getOrDefault(ModDataComponents.LOOP_MANAGED.get(), false);
     }
 
     private static ItemStack mirrorCopy(ItemStack source) {
