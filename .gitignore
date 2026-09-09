@@ -8,6 +8,7 @@ src/generated/resources/.cache/
 .vscode/
 toolchain/
 build-log.txt
+run-client-log.txt
 *.log
 
 # Third-party mod jars for the dev client - not ours to commit. Fetch with scripts/fetch-testmods.
