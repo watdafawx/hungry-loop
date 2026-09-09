@@ -14,3 +14,4 @@ run-client-log.txt
 # Third-party mod jars for the dev client - not ours to commit. Fetch with scripts/fetch-testmods.
 run/mods/
 rc2.log
+rc3.log

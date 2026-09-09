@@ -104,7 +104,10 @@ So the loop **grants real Curios slots** and mirrors its contents into them.
 - [x] Cost curve `LoopContents.slotCost(base, bonus)` = `round(5 · 1.7^(have−4)) + 3·(base−4)` —
       steep per-slot growth + a flat surcharge per starting slot, so a 4-slot and an 8-slot shiny
       converge on similar total investment
-- [x] Hard cap: 12 total slots (`MAX_TOTAL_SLOTS`) — `[?]` raise it? config it?
+- [x] Cap: 12 by default (`LoopContents.slotCap`), raised by feeding Nether Stars from the cursor
+      at the Feed button — `Config.SLOTS_PER_STAR` (2) each, up to `Config.ABSOLUTE_MAX_SLOTS` (20)
+- [x] Shift-click Feed feeds every XP level you have (was: only enough for one slot)
+- [x] Config (COMMON): `slotsPerStar`, `absoluteMaxSlots`
 - [x] Consume player XP levels, bank partial progress in `storedXp`, grow `bonusSlots`, level-up
       sound, reopen menu to show new slots
 - [x] Progress persists on the stack (component); loop is `stacksTo(1)`
@@ -131,15 +134,17 @@ So the loop **grants real Curios slots** and mirrors its contents into them.
 - [ ] Rich tooltip on the item: drag items in/out **through the tooltip**
 - [x] "Feed XP" button + `stored / cost XP levels` readout in the screen
 - [x] Shiny loops visually distinct (aqua bevel + badge colour)
-- [ ] GUI polish pass (user feedback): approach liked; no drop-shadow (done); "future" slots as a
-      faint outline not a well (done); still want it to feel less like Relics-lite — loop icon in
-      the header, maybe a "maw" motif for the feed area, art for the slot backgrounds
+- [x] GUI: sub-slots trace a **snake constellation** (serpentine + undulation); faint Bresenham
+      lines join every point on the path; bigger panel (218×246); no drop-shadow
+- [ ] GUI still-wanted: true infinite/pannable canvas for the slot area (for big caps); loop icon
+      in the header; a "maw" motif for the feed area; real art for slot wells + panel
 - [x] Passthrough-selected item shown in the loop's name / tooltip
 
 ## Phase 7 — Loot & the shiny variant
 
 - [x] Shiny loot variant via a Global Loot Modifier (`ShinyLoopModifier`) — 6% chance in ~15
-      structure chest tables (`data/hungryloop/loot_modifier/shiny_hungry_loop.json`)
+      structure chest tables; target tables + chance are codec fields checked against
+      `LootContext.getQueriedLootTableId()`. File at `data/hungryloop/loot_modifiers/` (plural).
 - [x] Shiny loot loops roll 6–8 base slots ("double slots unlocked"), `shiny=true`, loot-only
 - [x] Shiny = slots only for v1 (no quality bonus)
 - [ ] Weight the base-slot roll toward 6; tune the chance and table list per pack
