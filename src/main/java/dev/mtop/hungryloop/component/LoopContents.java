@@ -204,10 +204,10 @@ public record LoopContents(int baseSlots, int bonusSlots, int capBonus, boolean 
         if (!(o instanceof LoopContents other)) return false;
         if (baseSlots != other.baseSlots || bonusSlots != other.bonusSlots || capBonus != other.capBonus
                 || shiny != other.shiny || storedXp != other.storedXp || selected != other.selected
-                || renderMask != other.renderMask || selfRenders != other.selfRenders) {
+                || renderMask != other.renderMask || selfRenders != other.selfRenders
+                || items.size() != other.items.size()) {
             return false;
         }
-        if (items.size() != other.items.size()) return false;
         for (int i = 0; i < items.size(); i++) {
             if (!ItemStack.matches(items.get(i), other.items.get(i))) return false;
         }

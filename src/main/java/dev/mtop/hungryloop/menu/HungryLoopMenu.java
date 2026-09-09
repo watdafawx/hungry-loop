@@ -171,8 +171,11 @@ public class HungryLoopMenu extends AbstractContainerMenu {
         for (int i = 0; i < MAX_LOOP_SLOTS; i++) {
             items.add(contents.getItem(i));
         }
-        loop.set(ModDataComponents.LOOP_CONTENTS.get(), current.withItems(items));
+        LoopContents next = current.withItems(items);
+        if (next.equals(current)) return; // the container listener fires several times per edit
+        loop.set(ModDataComponents.LOOP_CONTENTS.get(), next);
         locator.afterChange(player, loop);
+        LoopSlotMirror.syncIfServer(player);
     }
 
     @Override
