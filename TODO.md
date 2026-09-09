@@ -61,7 +61,10 @@ So the loop **grants real Curios slots** and mirrors its contents into them.
       slots show until reopen; matches how Curios handles other slot-granting items
 - [ ] Verify each: Apotheosis affix abilities, Relics abilities, Artifacts abilities all fire from
       a loop-held item
-- [ ] Contained cosmetics rendering on the body — decide (probably suppress)
+- [x] Contained cosmetics render on the body (the mirrors are really equipped). Per-item + master
+      render toggle in the loop screen (`LoopContents.renderMask` / `selfRenders` → the granted
+      slot's Curios render flag, synced with `SPacketSyncRender`). Hiding the loop's own Curios
+      slot cascades to all contents.
 - [ ] Multiple loops, loop-in-loop guard under the new model
 - [x] Right-click opens the menu (hand + in-GUI, deferred); **keybind** (`H`, rebindable) opens it
       from anywhere incl. creative inventory (`net.OpenLoopPayload`)
