@@ -22,8 +22,6 @@ import top.theillusivec4.curios.api.type.inventory.ICurioStacksHandler;
 import top.theillusivec4.curios.common.network.server.sync.SPacketSyncRender;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -110,56 +108,42 @@ public final class LoopSlotMirror {
                 .orElse(true);
     }
 
+    /**
+     * Mirrors {@code desired} into this type's <em>trailing</em> slots and nowhere else. Keeping the
+     * mirrors packed at the high indices is what lets the Curios screen hide them by simply trimming
+     * the slot count ({@link #hiddenSlotCount}). A slot already holding the right mirror is left
+     * untouched so unrelated equipped items don't blip when the loop's contents change.
+     */
     private static void mirrorInto(ServerPlayer player, String type, ICurioStacksHandler stacksHandler,
                                    List<Want> desired) {
         var stacks = stacksHandler.getStacks();
         int total = stacks.getSlots();
 
-        List<Integer> ourSlots = new ArrayList<>();
+        // How many trailing slots we can actually claim: empty or already a mirror.
+        int claimable = 0;
         for (int i = total - 1; i >= 0; i--) {
             ItemStack s = stacks.getStackInSlot(i);
-            if (s.isEmpty() || isMirror(s)) {
-                ourSlots.add(i);
-            } else {
-                break;
+            if (s.isEmpty() || isMirror(s)) claimable++;
+            else break;
+        }
+        int k = Math.min(desired.size(), claimable);
+        int firstMirror = total - k;
+
+        // Fill the last k slots with the wanted mirrors, reusing a slot that already matches.
+        for (int p = 0; p < k; p++) {
+            int idx = firstMirror + p;
+            Want want = desired.get(p);
+            ItemStack mirror = mirrorCopy(want.stack());
+            if (!ItemStack.matches(stacks.getStackInSlot(idx), mirror)) {
+                stacks.setStackInSlot(idx, mirror);
             }
-        }
-        Collections.reverse(ourSlots);
-
-        List<Want> needed = new ArrayList<>(desired.size());
-        for (Want w : desired) {
-            needed.add(new Want(mirrorCopy(w.stack()), w.render()));
+            setRender(player, stacksHandler, type, idx, want.render());
         }
 
-        // Pass 1: keep a slot whose mirror is still wanted; make its render flag match.
-        boolean[] keep = new boolean[ourSlots.size()];
-        for (int k = 0; k < ourSlots.size(); k++) {
-            int idx = ourSlots.get(k);
-            ItemStack cur = stacks.getStackInSlot(idx);
-            if (!isMirror(cur)) continue;
-            for (Iterator<Want> it = needed.iterator(); it.hasNext(); ) {
-                Want w = it.next();
-                if (ItemStack.matches(cur, w.stack())) {
-                    it.remove();
-                    keep[k] = true;
-                    setRender(player, stacksHandler, type, idx, w.render());
-                    break;
-                }
-            }
-        }
-
-        // Pass 2: fill leftovers, clear no-longer-wanted mirrors.
-        for (int k = 0; k < ourSlots.size(); k++) {
-            if (keep[k]) continue;
-            int idx = ourSlots.get(k);
-            ItemStack cur = stacks.getStackInSlot(idx);
-
-            if (!needed.isEmpty()) {
-                Want w = needed.remove(0);
-                stacks.setStackInSlot(idx, w.stack());
-                setRender(player, stacksHandler, type, idx, w.render());
-            } else if (isMirror(cur)) {
-                stacks.setStackInSlot(idx, ItemStack.EMPTY);
+        // Anything mirror-marked outside that trailing block is stale - clear it.
+        for (int i = 0; i < firstMirror; i++) {
+            if (isMirror(stacks.getStackInSlot(i))) {
+                stacks.setStackInSlot(i, ItemStack.EMPTY);
             }
         }
     }
@@ -187,6 +171,17 @@ public final class LoopSlotMirror {
         int count = 0;
         for (int i = stacks.getSlots() - 1; i >= 0 && isMirror(stacks.getStackInSlot(i)); i--) {
             count++;
+        }
+        if (stacks.getSlots() > 0) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < stacks.getSlots(); i++) {
+                ItemStack s = stacks.getStackInSlot(i);
+                sb.append(" [").append(i).append(']')
+                  .append(s.isEmpty() ? "empty" : s.getItem().toString())
+                  .append(s.has(ModDataComponents.LOOP_MANAGED.get()) ? "*MIRROR" : "");
+            }
+            HungryLoop.LOG.info("[hiddenSlotCount] {} slots={} hidden={} contents:{}",
+                    stacksHandler.getIdentifier(), stacks.getSlots(), count, sb);
         }
         return count;
     }
