@@ -51,10 +51,10 @@ costForNext    = BASE_COST * growth^(totalSlots - 4) + BASE_PENALTY * (baseSlots
 
 ## Open questions
 
-| # | Question | Leaning |
-|---|----------|---------|
-| 1 | Loop equips in generic `curio` slot or its own `hungry_loop` slot type? | Own slot type, added by datapack, so it never competes with normal curios |
-| 2 | One item per slot type inside a loop, or unlimited duplicates? | Match native Curios — if you have 2 ring slots you can wear 2 rings; a loop with 4 slots could hold 4 rings. Simpler and no special-casing. |
+| # | Question | Decision |
+|---|----------|----------|
+| 1 | Loop equips in generic `curio` slot or its own `hungry_loop` slot type? | **Generic `curio` slot** (item tag `#curios:curio`). Curios' `isStackValid` treats an item that fits `curio` as valid in *every* slot, so the loop works in any curio slot the pack has. |
+| 2 | One item per slot type inside a loop, or unlimited duplicates? | **Duplicates allowed.** Contents are just forwarded to Curios as if in their own slot; nothing cares if there are two rings. Forwarded attribute modifiers are re-id'd per sub-slot to avoid AttributeMap key collisions. |
 | 3 | Total slot cap? | 12 |
 | 4 | Shiny = more slots only, or slots + a quality/affix bonus? | Slots only for v1 |
 | 5 | Craftable? | Loot-only for v1; revisit |

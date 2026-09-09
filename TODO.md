@@ -29,35 +29,37 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started · `[?]` needs a de
 
 ## Phase 1 — The stack: data model & adaptive inventory
 
-- [ ] `HungryLoopData` data component on the ItemStack:
-  - [ ] `int baseSlots` (4, or 4–8 for shiny)
-  - [ ] `int bonusSlots` (earned via XP)
-  - [ ] `boolean shiny`
-  - [ ] `int storedXp` / progress toward next slot
-  - [ ] `List<ItemStack> contents` (size = baseSlots + bonusSlots)
-- [ ] Codec + StreamCodec for the component; register a `DataComponentType`
-- [ ] `LoopInventory` view wrapping the component — get/set/resize, drop-on-shrink safety
-- [ ] Per-sub-slot **slot type resolution**: when a stack is placed, resolve which Curios slot type
-      it belongs to (`CuriosApi.getItemStackSlots` / item's declared slots / tag). The sub-slot
-      "becomes" that type for validation and for effect forwarding.
-- [ ] Sub-slot validation mirrors a real Curios slot (`ICurio.canEquip`-style checks, slot-type
-      predicate, size-1)
-- [ ] `[?]` One item per type only? Or allow N rings in one loop? (design decision — see DESIGN.md)
+- [x] `LoopContents` data component on the ItemStack — `baseSlots`, `bonusSlots`, `shiny`,
+      `storedXp`, `List<ItemStack> items`; Codec + StreamCodec; registered `DataComponentType`
+      ([component/](src/main/java/dev/mtop/hungryloop/component/))
+- [x] `toSlotList()` / `withItems()` view helpers (fixed-size padded list, trailing-empty trim)
+- [x] Per-sub-slot **slot type resolution** — `ContentForwarding.resolveSlot()` via
+      `CuriosApi.getItemStackSlots`, preferring a specific type over generic `curio`
+- [x] Sub-slot validation — menu slots accept any stack with a Curios capability except another loop
+- [x] Duplicates allowed (per the design call — N rings in one loop is fine)
+- [ ] Drop-on-shrink safety (if a slot count ever decreases — not possible yet, XP only grows it)
+- [ ] Resolve-once and cache the slot type on the sub-slot? (currently recomputed each tick — fine
+      for now, revisit if it shows up in a profile)
 
 ## Phase 2 — Curios integration (the loop as a curio)
 
-- [ ] Register the loop as an `ICurio` / `ICurioItem` (Curios capability)
-- [ ] Decide the loop's own host slot(s): `curio` generic, or its own registered `hungry_loop` slot
-      type added via a slot-type datapack entry
-- [ ] `curios()` slot providers so the loop grants the player nothing by itself — the contents do
-- [ ] Forward **attribute modifiers** of every contained stack as though equipped
-      (`ICurio.getAttributeModifiers` aggregation, unique modifier ids per sub-slot)
-- [ ] Forward Curios tick callbacks to contents: `curioTick`, `onEquip` / `onUnequip`,
-      `onEquipFromUse`, damage/break handlers
-- [ ] Contents equip/unequip when the loop itself is equipped/unequipped or its inventory changes
+- [x] Register the loop as an `ICurioItem` (`HungryLoopCurio`, via `CuriosApi.registerCurio` in
+      `FMLCommonSetupEvent`)
+- [x] Loop sits in the generic `curio` slot type (item tag `#curios:curio`) → equippable in **any**
+      curio slot, competes with nothing
+- [x] Loop grants nothing itself — all effects come from forwarding
+- [x] Forward **attribute modifiers** of every contained stack, re-id'd per sub-slot so duplicates
+      don't collide on the wearer's AttributeMap (`HungryLoopCurio.getAttributeModifiers`)
+- [x] Forward `curioTick`, `onEquip`, `onUnequip` to contents with a synthesized `SlotContext`
+      carrying the sub-slot's type + the loop's wearer
+- [ ] Forward the rest: `onEquipFromUse`, `curioBreak`, `getFortuneLevel` / `getLootingLevel`,
+      `makesPiglinsNeutral`, `canWalkOnPowderedSnow`, `getDropRule`, sync data
+- [ ] Fire equip/unequip on contents when the loop's inventory changes while worn (not just when the
+      loop itself is equipped) — needs a `CurioChangeEvent`-style hook or menu-close diffing
 - [ ] Render nothing on the player body for contained cosmetics (or `[?]` render the first one?)
-- [ ] Verrrify: a plain Curios ring with an attribute (e.g. `+HP`) works identically in a loop slot
-      vs a native ring slot
+- [ ] **Verify**: a plain Curios ring with `+HP` works identically in a loop vs a native ring slot
+- [ ] Right-click opens the menu ✓ — keybind + "open from anywhere in inventory" still needs a
+      C→S packet (see Phase 6)
 
 ## Phase 3 — Apotheosis / affix support
 
@@ -93,13 +95,17 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started · `[?]` needs a de
 
 ## Phase 6 — UI
 
-- [ ] Custom `AbstractContainerMenu` + `Screen` for the loop's inventory
-- [ ] Open **as an overlay** — right-click the item, or a keybind — without closing the current
-      screen (push a screen that renders the parent behind it, or a widget layer)
-- [ ] Keybind registered under a "The Hungry Loop" category; default `[?]` (`R`? `V`?)
-- [ ] Open from: hotbar right-click, inventory, and while equipped as a curio
+- [x] Custom `AbstractContainerMenu` + `Screen` (`HungryLoopMenu` / `HungryLoopScreen`) — texture-less,
+      slot cells drawn at the menu's own slot coords so it scales with slot count
+- [x] Open via right-click on the held loop (`HungryLoopItem.use` → `openMenu` with hand in extra data)
+- [x] Menu accepts any curio, rejects another loop (no nesting), 1 per slot, writes back to the
+      component on every change and on close
+- [ ] Open **as an overlay** — without closing the current screen (push a screen that renders the
+      parent behind it, or a widget layer)
+- [ ] Keybind under a "The Hungry Loop" category + a C→S open packet; find the loop anywhere in
+      the player's inventory / curio slots, not just the held hand
 - [ ] Slot rendering shows each sub-slot's resolved type (ring/amulet/etc. background icon)
-- [ ] Rich tooltip on the item: list contents, drag items in/out **through the tooltip**
+- [ ] Rich tooltip on the item: drag items in/out **through the tooltip**
 - [ ] "Feed XP" button + slot-cost readout in the screen
 - [ ] Shiny loops visually distinct in the UI
 
@@ -118,9 +124,9 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started · `[?]` needs a de
   - [ ] Relics: unlock the relic's abilities (research complete) so they're usable immediately
   - [ ] doubles as a diagnostic — report each item's resolved slot type + `LootCategory`
         (mirror foxs-tweaks' `testhotbar`)
-- [ ] `/hungryloop give [slots] [--shiny]` — a loop with a chosen slot count
-- [ ] op-gated (`LEVEL_GAMEMASTERS`), registered from `RegisterCommandsEvent` (not `@EventBusSubscriber`
-      if it touches Relics/Artifacts types)
+- [x] `/hungryloop give [slots] [shiny]` — a loop with a chosen slot count / shiny flag
+- [x] op-gated (`LEVEL_GAMEMASTERS`), registered from `RegisterCommandsEvent`
+      (`HungryLoopCommands` — plain `@EventBusSubscriber`, touches no optional-mod types yet)
 
 ## Phase 9 — Polish & release
 
