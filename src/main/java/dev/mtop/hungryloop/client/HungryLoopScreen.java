@@ -62,30 +62,35 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
         int x = leftPos;
         int y = topPos;
         LoopContents data = menu.loopData();
+        int accent = data.shiny() ? SHINY : COPPER;
+        int accentLight = data.shiny() ? SHINY : COPPER_LIGHT;
+        int accentDark = data.shiny() ? 0xFF3C7C8C : COPPER_DARK;
 
-        // panel + bevel
-        g.fill(x - 4, y - 4, x + imageWidth + 4, y + imageHeight + 4, BLACK);
+        // panel + bevel (no drop shadow)
         g.fillGradient(x, y, x + imageWidth, y + imageHeight, PANEL_TOP, PANEL_BOTTOM);
-        bevel(g, x, y, imageWidth, imageHeight, data.shiny() ? SHINY : COPPER,
-                data.shiny() ? SHINY : COPPER_LIGHT, data.shiny() ? 0xFF3C7C8C : COPPER_DARK);
+        bevel(g, x, y, imageWidth, imageHeight, accent, accentLight, accentDark);
 
         // title-bar underline
-        g.fill(x + 6, y + 18, x + imageWidth - 6, y + 19, COPPER_DARK);
+        g.fill(x + 6, y + 18, x + imageWidth - 6, y + 19, accentDark);
 
         // slot count badge, top-right
         String count = data.totalSlots() + " / " + LoopContents.MAX_TOTAL_SLOTS;
         g.drawString(font, count, x + imageWidth - 8 - font.width(count), y + 7,
                 data.shiny() ? SHINY : 0xFFE7C9A6, false);
 
-        // loop grid: real wells, then dim "future" wells up to the cap
+        // loop grid: real wells, then faint "future" wells up to the cap
         int total = menu.loopSlotCount();
         for (int i = 0; i < LoopContents.MAX_TOTAL_SLOTS; i++) {
-            int sx = x + HungryLoopMenu.loopSlotX(i, Math.max(total, i + 1));
+            int sx = x + HungryLoopMenu.loopSlotX(i);
             int sy = y + HungryLoopMenu.loopSlotY(i);
             if (i < total) {
                 well(g, sx, sy, WELL, WELL_EDGE);
             } else {
-                well(g, sx, sy, GHOST_WELL, GHOST_WELL);
+                // faint outline only - reads as "room to grow", not a real slot
+                g.fill(sx, sy, sx + 16, sy + 1, GHOST_WELL);
+                g.fill(sx, sy + 15, sx + 16, sy + 16, GHOST_WELL);
+                g.fill(sx, sy, sx + 1, sy + 16, GHOST_WELL);
+                g.fill(sx + 15, sy, sx + 16, sy + 16, GHOST_WELL);
                 g.drawCenteredString(font, "+", sx + 8, sy + 4, GHOST_MARK);
             }
         }

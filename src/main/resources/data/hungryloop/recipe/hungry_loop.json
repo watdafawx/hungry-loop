@@ -8,9 +8,9 @@
     "CPC"
   ],
   "key": {
-    "C": "minecraft:copper_ingot",
-    "P": "minecraft:ender_pearl",
-    "A": "minecraft:amethyst_shard"
+    "C": { "item": "minecraft:copper_ingot" },
+    "P": { "item": "minecraft:ender_pearl" },
+    "A": { "item": "minecraft:amethyst_shard" }
   },
   "result": {
     "id": "hungryloop:hungry_loop",

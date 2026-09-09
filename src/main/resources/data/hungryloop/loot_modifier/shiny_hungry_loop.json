@@ -1,31 +1,24 @@
 {
   "type": "hungryloop:shiny_loop",
-  "conditions": [
-    {
-      "condition": "minecraft:any_of",
-      "terms": [
-        { "condition": "neoforge:loot_table_id", "loot_table_id": "minecraft:chests/simple_dungeon" },
-        { "condition": "neoforge:loot_table_id", "loot_table_id": "minecraft:chests/abandoned_mineshaft" },
-        { "condition": "neoforge:loot_table_id", "loot_table_id": "minecraft:chests/jungle_temple" },
-        { "condition": "neoforge:loot_table_id", "loot_table_id": "minecraft:chests/desert_pyramid" },
-        { "condition": "neoforge:loot_table_id", "loot_table_id": "minecraft:chests/stronghold_corridor" },
-        { "condition": "neoforge:loot_table_id", "loot_table_id": "minecraft:chests/stronghold_crossing" },
-        { "condition": "neoforge:loot_table_id", "loot_table_id": "minecraft:chests/woodland_mansion" },
-        { "condition": "neoforge:loot_table_id", "loot_table_id": "minecraft:chests/nether_bridge" },
-        { "condition": "neoforge:loot_table_id", "loot_table_id": "minecraft:chests/bastion_treasure" },
-        { "condition": "neoforge:loot_table_id", "loot_table_id": "minecraft:chests/bastion_other" },
-        { "condition": "neoforge:loot_table_id", "loot_table_id": "minecraft:chests/ancient_city" },
-        { "condition": "neoforge:loot_table_id", "loot_table_id": "minecraft:chests/end_city_treasure" },
-        { "condition": "neoforge:loot_table_id", "loot_table_id": "minecraft:chests/pillager_outpost" },
-        { "condition": "neoforge:loot_table_id", "loot_table_id": "minecraft:chests/shipwreck_treasure" },
-        { "condition": "neoforge:loot_table_id", "loot_table_id": "minecraft:chests/buried_treasure" }
-      ]
-    },
-    {
-      "condition": "minecraft:random_chance",
-      "chance": 0.06
-    }
-  ],
+  "conditions": [],
+  "chance": 0.06,
   "min_base": 6,
-  "max_base": 8
+  "max_base": 8,
+  "tables": [
+    "minecraft:chests/simple_dungeon",
+    "minecraft:chests/abandoned_mineshaft",
+    "minecraft:chests/jungle_temple",
+    "minecraft:chests/desert_pyramid",
+    "minecraft:chests/stronghold_corridor",
+    "minecraft:chests/stronghold_crossing",
+    "minecraft:chests/woodland_mansion",
+    "minecraft:chests/nether_bridge",
+    "minecraft:chests/bastion_treasure",
+    "minecraft:chests/bastion_other",
+    "minecraft:chests/ancient_city",
+    "minecraft:chests/end_city_treasure",
+    "minecraft:chests/pillager_outpost",
+    "minecraft:chests/shipwreck_treasure",
+    "minecraft:chests/buried_treasure"
+  ]
 }

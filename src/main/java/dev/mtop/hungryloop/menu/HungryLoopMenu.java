@@ -38,22 +38,22 @@ public class HungryLoopMenu extends AbstractContainerMenu {
     private final SimpleContainer contents;
     private final int loopSlotCount;
 
-    /** Client-side factory: the locator comes over the wire. */
+    /** Client-side factory: locator + slot count come over the wire, so the two sides always agree. */
     public HungryLoopMenu(int windowId, Inventory playerInv, RegistryFriendlyByteBuf extraData) {
-        this(windowId, playerInv, LoopLocator.decode(extraData));
+        this(windowId, playerInv, LoopLocator.decode(extraData), extraData.readVarInt());
     }
 
-    public HungryLoopMenu(int windowId, Inventory playerInv, LoopLocator locator) {
+    HungryLoopMenu(int windowId, Inventory playerInv, LoopLocator locator, int slotCount) {
         super(ModMenus.HUNGRY_LOOP.get(), windowId);
         this.player = playerInv.player;
         this.locator = locator;
+        this.loopSlotCount = slotCount;
 
-        ItemStack loop = locator.resolve(player);
-        LoopContents data = loop.getOrDefault(ModDataComponents.LOOP_CONTENTS.get(), LoopContents.DEFAULT);
-        this.loopSlotCount = data.totalSlots();
+        LoopContents data = locator.resolve(player)
+                .getOrDefault(ModDataComponents.LOOP_CONTENTS.get(), LoopContents.DEFAULT);
         this.contents = new SimpleContainer(loopSlotCount);
         var slotList = data.toSlotList();
-        for (int i = 0; i < loopSlotCount; i++) {
+        for (int i = 0; i < Math.min(loopSlotCount, slotList.size()); i++) {
             this.contents.setItem(i, slotList.get(i));
         }
         this.contents.addListener(c -> persist());
@@ -62,11 +62,10 @@ public class HungryLoopMenu extends AbstractContainerMenu {
         addPlayerSlots(playerInv);
     }
 
-    public static int loopSlotX(int index, int slotCount) {
-        int row = index / LOOP_SLOTS_PER_ROW;
+    /** Fixed 6-column grid, left-to-right; real and "future" slots always line up. */
+    public static int loopSlotX(int index) {
         int col = index % LOOP_SLOTS_PER_ROW;
-        int rowCount = Math.min(LOOP_SLOTS_PER_ROW, slotCount - row * LOOP_SLOTS_PER_ROW);
-        return (PANEL_WIDTH - rowCount * 18) / 2 + col * 18 + 1;
+        return (PANEL_WIDTH - LOOP_SLOTS_PER_ROW * 18) / 2 + col * 18 + 1;
     }
 
     public static int loopSlotY(int index) {
@@ -75,7 +74,7 @@ public class HungryLoopMenu extends AbstractContainerMenu {
 
     private void addLoopSlots() {
         for (int i = 0; i < loopSlotCount; i++) {
-            addSlot(new Slot(contents, i, loopSlotX(i, loopSlotCount), loopSlotY(i)) {
+            addSlot(new Slot(contents, i, loopSlotX(i), loopSlotY(i)) {
                 @Override
                 public boolean mayPlace(ItemStack stack) {
                     return isEquippableCurio(stack);
@@ -153,12 +152,11 @@ public class HungryLoopMenu extends AbstractContainerMenu {
         LoopContents fed = data.feed(feed);
         loop.set(ModDataComponents.LOOP_CONTENTS.get(), fed);
 
-        if (fed.totalSlots() > data.totalSlots()) {
+        if (fed.totalSlots() > data.totalSlots() && who instanceof ServerPlayer sp) {
             who.level().playSound(null, who.blockPosition(), net.minecraft.sounds.SoundEvents.PLAYER_LEVELUP,
                     net.minecraft.sounds.SoundSource.PLAYERS, 0.6f, 1.4f);
-            if (who instanceof ServerPlayer sp) {
-                open(sp, locator); // reopen so the new slots appear
-            }
+            // Reopen after the tick so the grown menu's slot list is built cleanly, not mid-click.
+            sp.server.execute(() -> open(sp, locator));
         } else {
             broadcastChanges();
         }
@@ -199,14 +197,19 @@ public class HungryLoopMenu extends AbstractContainerMenu {
         return copy;
     }
 
-    /** Opens the loop menu for {@code player}, resolving the loop via {@code locator} each time. */
+    /** Opens the loop menu for {@code player}, resolving the loop via {@code locator}. */
     public static void open(ServerPlayer player, LoopLocator locator) {
-        if (!(locator.resolve(player).getItem() instanceof HungryLoopItem)) return;
+        ItemStack loop = locator.resolve(player);
+        if (!(loop.getItem() instanceof HungryLoopItem)) return;
 
+        int slots = loop.getOrDefault(ModDataComponents.LOOP_CONTENTS.get(), LoopContents.DEFAULT).totalSlots();
         MenuProvider provider = new SimpleMenuProvider(
-                (id, inv, p) -> new HungryLoopMenu(id, inv, locator),
-                locator.resolve(player).getHoverName());
-        player.openMenu(provider, locator::encode);
+                (id, inv, p) -> new HungryLoopMenu(id, inv, locator, slots),
+                loop.getHoverName());
+        player.openMenu(provider, buf -> {
+            locator.encode(buf);
+            buf.writeVarInt(slots);
+        });
     }
 
     public int loopSlotCount() {
