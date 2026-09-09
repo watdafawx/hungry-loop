@@ -20,7 +20,8 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started · `[?]` needs a de
       call its API); it is what teaches Apotheosis to affix/socket curio items. See Phase 3.
 - [x] `scripts/fetch-testmods.ps1`
 - [x] First green build — `build.bat build` (`BUILD SUCCESSFUL`, 2026-09-09)
-- [ ] First dev client launch — `build.bat runClient`, confirm the loop appears in its creative tab
+- [x] First dev client launch — `build.bat runClient`, all 13 mods load (0 requirements missing),
+      loop shows up in-world (2026-09-09)
 - [x] `git init` + initial commit
 - [ ] **Real item texture** — pixel-art it from the reference ring art (currently a generated
       16×16 placeholder). Path: `src/main/resources/assets/hungryloop/textures/item/hungry_loop.png`.
