@@ -5,6 +5,7 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.entity.LivingEntity;
 import top.theillusivec4.curios.api.CuriosApi;
 import top.theillusivec4.curios.api.type.ICuriosMenu;
+import top.theillusivec4.curios.client.gui.CuriosScreen;
 import top.theillusivec4.curios.common.network.client.CuriosClientPackets;
 import top.theillusivec4.curios.common.network.server.sync.SPacketSyncStack;
 import org.spongepowered.asm.mixin.Mixin;
@@ -52,9 +53,13 @@ public class CuriosClientPacketsMixin {
         // A single-slot sync (unlike the full-inventory ones) doesn't rebuild the open Curios
         // screen, so a mirror written into a granted slot keeps showing until it's reopened.
         // Rebuild it here - it only fires while that screen is open and a curio stack just changed.
-        LocalPlayer player = Minecraft.getInstance().player;
+        Minecraft mc = Minecraft.getInstance();
+        LocalPlayer player = mc.player;
         if (player != null && player.containerMenu instanceof ICuriosMenu menu) {
             menu.resetSlots();
+            if (mc.screen instanceof CuriosScreen curiosScreen) {
+                curiosScreen.updateRenderButtons(); // keep the render toggles in step with the slots
+            }
         }
     }
 }
