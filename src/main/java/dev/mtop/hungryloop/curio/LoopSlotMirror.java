@@ -7,7 +7,6 @@ import dev.mtop.hungryloop.item.HungryLoopItem;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.item.ItemEntity;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -24,12 +23,10 @@ import top.theillusivec4.curios.common.network.server.sync.SPacketSyncRender;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 /**
  * Keeps the real Curios slots the loop grants filled with the loop's contents, as marked mirror
@@ -44,8 +41,6 @@ import java.util.UUID;
 public final class LoopSlotMirror {
 
     private static final int SYNC_INTERVAL = 3;
-    private static final Map<UUID, Integer> settleUntilTick = new HashMap<>();
-    private static final int SETTLE_TICKS = 5;
 
     private record Want(ItemStack stack, boolean render) {}
 
@@ -77,7 +72,7 @@ public final class LoopSlotMirror {
     @SubscribeEvent
     static void onSlotModifiersUpdated(SlotModifiersUpdatedEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
-            settleUntilTick.put(player.getUUID(), player.tickCount + SETTLE_TICKS);
+            sync(player, true); // slot counts changed - reconcile the mirrors now
         }
     }
 
@@ -88,9 +83,6 @@ public final class LoopSlotMirror {
     public static void sync(ServerPlayer player, boolean force) {
         ICuriosItemHandler handler = CuriosApi.getCuriosInventory(player).orElse(null);
         if (handler == null) return;
-
-        boolean settling = !force
-                && player.tickCount < settleUntilTick.getOrDefault(player.getUUID(), 0);
 
         Map<String, List<Want>> wanted = new LinkedHashMap<>();
         for (SlotResult worn : handler.findCurios(s -> s.getItem() instanceof HungryLoopItem && !isMirror(s))) {
@@ -108,9 +100,8 @@ public final class LoopSlotMirror {
             }
         }
 
-        boolean stillSettling = settling;
         handler.getCurios().forEach((type, stacksHandler) ->
-                mirrorInto(player, type, stacksHandler, wanted.getOrDefault(type, List.of()), stillSettling));
+                mirrorInto(player, type, stacksHandler, wanted.getOrDefault(type, List.of())));
     }
 
     private static boolean slotRenders(ICuriosItemHandler handler, String type, int index) {
@@ -120,7 +111,7 @@ public final class LoopSlotMirror {
     }
 
     private static void mirrorInto(ServerPlayer player, String type, ICurioStacksHandler stacksHandler,
-                                   List<Want> desired, boolean settling) {
+                                   List<Want> desired) {
         var stacks = stacksHandler.getStacks();
         int total = stacks.getSlots();
 
@@ -164,7 +155,6 @@ public final class LoopSlotMirror {
             ItemStack cur = stacks.getStackInSlot(idx);
 
             if (!needed.isEmpty()) {
-                if (settling && cur.isEmpty() && !isMirror(cur)) continue;
                 Want w = needed.remove(0);
                 stacks.setStackInSlot(idx, w.stack());
                 setRender(player, stacksHandler, type, idx, w.render());
@@ -184,21 +174,6 @@ public final class LoopSlotMirror {
                 new SPacketSyncRender(player.getId(), type, index, render));
     }
 
-    public static int grantedCount(Player player, String type) {
-        ICuriosItemHandler handler = CuriosApi.getCuriosInventory(player).orElse(null);
-        if (handler == null) return 0;
-        int count = 0;
-        for (SlotResult worn : handler.findCurios(s -> s.getItem() instanceof HungryLoopItem && !isMirror(s))) {
-            LoopContents data = worn.stack()
-                    .getOrDefault(ModDataComponents.LOOP_CONTENTS.get(), LoopContents.DEFAULT);
-            for (ItemStack contained : data.items()) {
-                if (!contained.isEmpty() && ContentForwarding.resolveSlot(contained, player).equals(type)) {
-                    count++;
-                }
-            }
-        }
-        return count;
-    }
 
     private static void purgeStrayMirrors(ServerPlayer player) {
         var inv = player.getInventory();

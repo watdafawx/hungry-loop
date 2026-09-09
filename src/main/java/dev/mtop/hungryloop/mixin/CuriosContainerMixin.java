@@ -3,7 +3,7 @@ package dev.mtop.hungryloop.mixin;
 import dev.mtop.hungryloop.curio.LoopSlotMirror;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
-import top.theillusivec4.curios.api.CuriosApi;
+import net.minecraft.world.item.ItemStack;
 import top.theillusivec4.curios.api.type.inventory.IDynamicStackHandler;
 import top.theillusivec4.curios.common.inventory.container.CuriosContainer;
 import org.spongepowered.asm.mixin.Mixin;
@@ -39,16 +39,14 @@ public abstract class CuriosContainerMixin {
             at = @At(value = "INVOKE",
                     target = "Ltop/theillusivec4/curios/api/type/inventory/IDynamicStackHandler;getSlots()I"),
             remap = false)
-    private int hungryloop$hideGrantedSlots(IDynamicStackHandler stacks) {
+    private int hungryloop$hideMirrorSlots(IDynamicStackHandler stacks) {
         int real = stacks.getSlots();
-        var handler = CuriosApi.getCuriosInventory(player).orElse(null);
-        if (handler == null) return real;
-
-        for (var entry : handler.getCurios().entrySet()) {
-            if (entry.getValue().getStacks() == stacks) {
-                return Math.max(0, real - LoopSlotMirror.grantedCount(player, entry.getKey()));
-            }
+        int mirrors = 0;
+        for (int i = 0; i < real; i++) {
+            ItemStack s = stacks.getStackInSlot(i);
+            if (!s.isEmpty() && LoopSlotMirror.isMirror(s)) mirrors++;
         }
-        return real;
+        // Mirrors are always the trailing slots, so hiding this many from the count hides exactly them.
+        return Math.max(0, real - mirrors);
     }
 }
