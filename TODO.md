@@ -136,9 +136,16 @@ So the loop **grants real Curios slots** and mirrors its contents into them.
       parent behind it, or a widget layer)
 - [ ] Keybind under a "The Hungry Loop" category + a C→S open packet (open without a GUI already up)
 - [ ] Slot rendering shows each sub-slot's resolved type (ring/amulet/etc. background icon)
-- [x] Rich tooltip: each contained item's own tooltip (name, affixes, attributes, gem sockets),
-      indented + paginated; scroll over the loop in a GUI to change page (`HungryLoopTooltip`)
+- [x] Rich tooltip: custom `ClientTooltipComponent` — a card per contained item (its **icon** +
+      its own tooltip: affixes, attributes, gem sockets), 3 cards/page; scroll over the loop in a
+      GUI to page. Apotheosis `SOCKET_MARKER` filtered → real per-socket lines (`ApothTooltip`).
+- [x] Menu is MAX-sized (54) with inactive locked slots → growing never rebuilds/reopens the menu
+      (fixed cursor-warp-to-centre)
+- [x] `HungryLoopScreen.render()` calls `renderTooltip()` — `AbstractContainerScreen`'s NeoForge
+      rewrite doesn't, so contained-item tooltips were missing in the loop GUI
 - [ ] Drag items in/out **through the tooltip** (still just the menu)
+- [ ] Gem icons (not just text) in the socket lines
+- [ ] Pannable/infinite canvas for the snake when the cap is pushed past ~24 via config
 - [x] "Feed XP" button + `stored / cost XP levels` readout in the screen
 - [x] Shiny loops visually distinct (aqua bevel + badge colour)
 - [x] GUI: sub-slots trace a **snake constellation** (serpentine + undulation); faint Bresenham
