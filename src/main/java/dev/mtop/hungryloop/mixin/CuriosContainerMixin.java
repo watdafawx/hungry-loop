@@ -1,9 +1,10 @@
 package dev.mtop.hungryloop.mixin;
 
+import com.llamalad7.mixinextras.sugar.Local;
 import dev.mtop.hungryloop.curio.LoopSlotMirror;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.ItemStack;
+import top.theillusivec4.curios.api.type.inventory.ICurioStacksHandler;
 import top.theillusivec4.curios.api.type.inventory.IDynamicStackHandler;
 import top.theillusivec4.curios.common.inventory.container.CuriosContainer;
 import org.spongepowered.asm.mixin.Mixin;
@@ -14,13 +15,12 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Hides the extra Curios slots the loop grants from the Curios screen: {@code setPage} builds one GUI
- * slot per slot in each type's handler, so we trim that count by the number the loop grants for that
- * type. The trailing slots (mirror or not-yet-mirrored) get no GUI slot; the underlying stacks stay,
- * so Relics/Artifacts/Apotheosis still see them equipped.
+ * Hides the extra Curios slots the loop grants from the Curios screen. {@code setPage} builds one GUI
+ * slot per slot in each type's handler; we trim that count by how many slots the loop grants for the
+ * type ({@link LoopSlotMirror#grantedCount}). That's derived from the loop's own synced contents, so
+ * it's right the instant the loop is equipped - it doesn't wait for the mirror stacks to arrive.
  *
- * <p>A {@code setPage} HEAD inject also re-syncs the mirrors first, so they're in place on the first
- * render.
+ * <p>The underlying stacks stay in the handler, so Relics/Artifacts/Apotheosis still see them.
  */
 @Mixin(CuriosContainer.class)
 public abstract class CuriosContainerMixin {
@@ -39,14 +39,9 @@ public abstract class CuriosContainerMixin {
             at = @At(value = "INVOKE",
                     target = "Ltop/theillusivec4/curios/api/type/inventory/IDynamicStackHandler;getSlots()I"),
             remap = false)
-    private int hungryloop$hideMirrorSlots(IDynamicStackHandler stacks) {
+    private int hungryloop$hideGrantedSlots(IDynamicStackHandler stacks,
+                                            @Local ICurioStacksHandler stacksHandler) {
         int real = stacks.getSlots();
-        int mirrors = 0;
-        for (int i = 0; i < real; i++) {
-            ItemStack s = stacks.getStackInSlot(i);
-            if (!s.isEmpty() && LoopSlotMirror.isMirror(s)) mirrors++;
-        }
-        // Mirrors are always the trailing slots, so hiding this many from the count hides exactly them.
-        return Math.max(0, real - mirrors);
+        return Math.max(0, real - LoopSlotMirror.grantedCount(player, stacksHandler.getIdentifier()));
     }
 }

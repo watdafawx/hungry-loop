@@ -7,6 +7,7 @@ import dev.mtop.hungryloop.item.HungryLoopItem;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -174,6 +175,26 @@ public final class LoopSlotMirror {
                 new SPacketSyncRender(player.getId(), type, index, render));
     }
 
+    /**
+     * How many slots of {@code type} the player's worn loops grant right now - derived from the
+     * loops' own contents, so it's correct even before the mirror stacks have synced.
+     */
+    public static int grantedCount(Player player, String type) {
+        ICuriosItemHandler handler = CuriosApi.getCuriosInventory(player).orElse(null);
+        if (handler == null) return 0;
+
+        int count = 0;
+        for (SlotResult worn : handler.findCurios(s -> s.getItem() instanceof HungryLoopItem && !isMirror(s))) {
+            LoopContents data = worn.stack()
+                    .getOrDefault(ModDataComponents.LOOP_CONTENTS.get(), LoopContents.DEFAULT);
+            for (ItemStack contained : data.items()) {
+                if (!contained.isEmpty() && ContentForwarding.resolveSlot(contained, player).equals(type)) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
 
     private static void purgeStrayMirrors(ServerPlayer player) {
         var inv = player.getInventory();
