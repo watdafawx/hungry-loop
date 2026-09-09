@@ -17,6 +17,7 @@ import top.theillusivec4.curios.api.CuriosApi;
 import top.theillusivec4.curios.api.SlotResult;
 import top.theillusivec4.curios.api.event.CurioChangeEvent;
 import top.theillusivec4.curios.api.event.SlotModifiersUpdatedEvent;
+import top.theillusivec4.curios.api.type.ICuriosMenu;
 import top.theillusivec4.curios.api.type.capability.ICuriosItemHandler;
 import top.theillusivec4.curios.api.type.inventory.ICurioStacksHandler;
 import top.theillusivec4.curios.common.network.server.sync.SPacketSyncRender;
@@ -135,14 +136,27 @@ public final class LoopSlotMirror {
             List<ItemStack> items = data.items();
             for (int i = 0; i < items.size(); i++) {
                 ItemStack contained = items.get(i);
-                if (contained.isEmpty()) continue;
+                // Skip empties and nested loops - a mirrored loop would be picked up as a worn loop
+                // on the next pass and mirror its own contents, spawning phantom copies.
+                if (contained.isEmpty() || contained.getItem() instanceof HungryLoopItem) continue;
                 wanted.computeIfAbsent(ContentForwarding.resolveSlot(contained, player), k -> new ArrayList<>())
                         .add(new Want(contained, loopVisible && data.rendersItem(i)));
             }
         }
 
-        handler.getCurios().forEach((type, stacksHandler) ->
-                mirrorInto(player, type, stacksHandler, wanted.getOrDefault(type, List.of())));
+        boolean[] changed = {false};
+        handler.getCurios().forEach((type, stacksHandler) -> {
+            if (mirrorInto(player, type, stacksHandler, wanted.getOrDefault(type, List.of()))) {
+                changed[0] = true;
+            }
+        });
+
+        // The client's Curios screen only re-hides the granted slots when it rebuilds. Nudge it to
+        // do so once the mirror layout has actually changed, so the slots don't linger visible until
+        // the player closes and reopens the screen.
+        if (changed[0] && player.containerMenu instanceof ICuriosMenu menu) {
+            menu.resetSlots();
+        }
     }
 
     /** Wipe every mirror from every curio slot - used when the last loop is unequipped. */
@@ -175,10 +189,11 @@ public final class LoopSlotMirror {
      * mirror stack in place (cooldowns, energy, ...), so rewriting it from the loop's stored copy
      * every sync would wipe that state and make the slot flicker.
      */
-    private static void mirrorInto(ServerPlayer player, String type, ICurioStacksHandler stacksHandler,
-                                   List<Want> desired) {
+    private static boolean mirrorInto(ServerPlayer player, String type, ICurioStacksHandler stacksHandler,
+                                      List<Want> desired) {
         var stacks = stacksHandler.getStacks();
         int total = stacks.getSlots();
+        boolean changed = false;
 
         // How many trailing slots we can actually claim: empty or already a mirror.
         int claimable = 0;
@@ -212,13 +227,12 @@ public final class LoopSlotMirror {
             int idx = firstMirror + p;
             if (!pending.isEmpty()) {
                 Want want = pending.remove(0);
-                HungryLoop.LOG.info("[mirror] {} slot {} <- {} (was {})", type, idx,
-                        want.stack().getItem(), stacks.getStackInSlot(idx).getItem());
                 stacks.setStackInSlot(idx, mirrorCopy(want.stack()));
                 setRender(player, stacksHandler, type, idx, want.render());
+                changed = true;
             } else if (isMirror(stacks.getStackInSlot(idx))) {
-                HungryLoop.LOG.info("[mirror] {} slot {} CLEAR", type, idx);
                 stacks.setStackInSlot(idx, ItemStack.EMPTY);
+                changed = true;
             }
         }
 
@@ -226,8 +240,10 @@ public final class LoopSlotMirror {
         for (int i = 0; i < firstMirror; i++) {
             if (isMirror(stacks.getStackInSlot(i))) {
                 stacks.setStackInSlot(i, ItemStack.EMPTY);
+                changed = true;
             }
         }
+        return changed;
     }
 
     /** Set a granted slot's Curios render flag and tell the client, if it changed. */
@@ -278,10 +294,7 @@ public final class LoopSlotMirror {
     }
 
     public static boolean isMirror(ItemStack stack) {
-        // A real loop must never count as a mirror even if it somehow carries the marker - clearing
-        // it out of its slot would strip its grants and the whole thing flickers.
-        return !(stack.getItem() instanceof HungryLoopItem)
-                && stack.getOrDefault(ModDataComponents.LOOP_MANAGED.get(), false);
+        return stack.getOrDefault(ModDataComponents.LOOP_MANAGED.get(), false);
     }
 
     private static ItemStack mirrorCopy(ItemStack source) {
