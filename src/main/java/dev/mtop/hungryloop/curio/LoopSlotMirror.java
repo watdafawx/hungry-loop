@@ -7,16 +7,20 @@ import dev.mtop.hungryloop.item.HungryLoopItem;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
+import net.neoforged.neoforge.network.PacketDistributor;
 import top.theillusivec4.curios.api.CuriosApi;
+import top.theillusivec4.curios.api.SlotResult;
 import top.theillusivec4.curios.api.event.CurioChangeEvent;
 import top.theillusivec4.curios.api.event.SlotModifiersUpdatedEvent;
 import top.theillusivec4.curios.api.type.capability.ICuriosItemHandler;
-import top.theillusivec4.curios.api.type.inventory.IDynamicStackHandler;
+import top.theillusivec4.curios.api.type.inventory.ICurioStacksHandler;
+import top.theillusivec4.curios.common.network.server.sync.SPacketSyncRender;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -28,29 +32,22 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Keeps the real Curios slots the loop grants ({@link HungryLoopCurio#getAttributeModifiers}) filled
- * with the loop's contents, as marked mirror copies. The loop's {@link LoopContents} component is the
- * single source of truth.
+ * Keeps the real Curios slots the loop grants filled with the loop's contents, as marked mirror
+ * copies. Reconciliation is incremental and content-matched - a mirror already holding a wanted item
+ * is left where it is, so adding/removing one item never blips the others.
  *
- * <p>Reconciliation is <b>incremental and content-matched</b>: a mirror already holding an item the
- * loop still wants is left exactly where it is. Adding or removing one item never disturbs the other
- * mirrors, so an already-equipped relic's effect doesn't blink.
- *
- * <p>Mirrors are copies - if one ever leaks out (a slot shrink dropping it, say) the ItemEntity is
- * cancelled and any stray in the inventory is purged, so it just vanishes and gets recreated.
+ * <p>Each mirror slot's Curios render flag tracks the loop's toggles: {@link LoopContents#selfRenders}
+ * (or the loop's own slot being hidden) hides every contained cosmetic; {@link LoopContents#renderMask}
+ * hides individual ones.
  */
 @EventBusSubscriber(modid = HungryLoop.MODID)
 public final class LoopSlotMirror {
 
     private static final int SYNC_INTERVAL = 3;
-
-    /**
-     * When a player's granted-slot count last changed. For a few ticks after, we don't write mirrors
-     * into freshly-empty slots, so Curios has time to sync the new slot count to the client first
-     * (otherwise the client gets a {@code sync_stack} for a slot it doesn't have yet).
-     */
     private static final Map<UUID, Integer> settleUntilTick = new HashMap<>();
     private static final int SETTLE_TICKS = 5;
+
+    private record Want(ItemStack stack, boolean render) {}
 
     private LoopSlotMirror() {}
 
@@ -62,7 +59,6 @@ public final class LoopSlotMirror {
         }
     }
 
-    /** A mirror only ever belongs in a granted slot. Never let one exist as a dropped item. */
     @SubscribeEvent
     static void onItemEntitySpawn(EntityJoinLevelEvent event) {
         if (event.getEntity() instanceof ItemEntity itemEntity && isMirror(itemEntity.getItem())) {
@@ -70,7 +66,6 @@ public final class LoopSlotMirror {
         }
     }
 
-    /** A loop came off (or swapped out): reconcile now so its mirrors are pulled before the shrink. */
     @SubscribeEvent
     static void onCurioChange(CurioChangeEvent event) {
         if (event.getFrom().getItem() instanceof HungryLoopItem
@@ -97,29 +92,38 @@ public final class LoopSlotMirror {
         boolean settling = !force
                 && player.tickCount < settleUntilTick.getOrDefault(player.getUUID(), 0);
 
-        Map<String, List<ItemStack>> wanted = new LinkedHashMap<>();
-        for (ItemStack loop : wornLoops(handler)) {
-            LoopContents data = loop.getOrDefault(ModDataComponents.LOOP_CONTENTS.get(), LoopContents.DEFAULT);
-            for (ItemStack contained : data.items()) {
+        Map<String, List<Want>> wanted = new LinkedHashMap<>();
+        for (SlotResult worn : handler.findCurios(s -> s.getItem() instanceof HungryLoopItem && !isMirror(s))) {
+            LoopContents data = worn.stack()
+                    .getOrDefault(ModDataComponents.LOOP_CONTENTS.get(), LoopContents.DEFAULT);
+            boolean loopVisible = data.selfRenders() && slotRenders(handler,
+                    worn.slotContext().identifier(), worn.slotContext().index());
+
+            List<ItemStack> items = data.items();
+            for (int i = 0; i < items.size(); i++) {
+                ItemStack contained = items.get(i);
                 if (contained.isEmpty()) continue;
                 wanted.computeIfAbsent(ContentForwarding.resolveSlot(contained, player), k -> new ArrayList<>())
-                        .add(contained);
+                        .add(new Want(contained, loopVisible && data.rendersItem(i)));
             }
         }
 
         boolean stillSettling = settling;
         handler.getCurios().forEach((type, stacksHandler) ->
-                mirrorInto(stacksHandler.getStacks(), wanted.getOrDefault(type, List.of()), stillSettling));
+                mirrorInto(player, type, stacksHandler, wanted.getOrDefault(type, List.of()), stillSettling));
     }
 
-    /**
-     * Reconcile the trailing (granted) slots of one type to hold exactly {@code desired}, keeping any
-     * mirror that already holds a wanted item untouched.
-     */
-    private static void mirrorInto(IDynamicStackHandler stacks, List<ItemStack> desired, boolean settling) {
+    private static boolean slotRenders(ICuriosItemHandler handler, String type, int index) {
+        return handler.getStacksHandler(type)
+                .map(sh -> index >= sh.getRenders().size() || sh.getRenders().get(index))
+                .orElse(true);
+    }
+
+    private static void mirrorInto(ServerPlayer player, String type, ICurioStacksHandler stacksHandler,
+                                   List<Want> desired, boolean settling) {
+        var stacks = stacksHandler.getStacks();
         int total = stacks.getSlots();
 
-        // The trailing run of empty / mirror slots - everything after the wearer's real curios.
         List<Integer> ourSlots = new ArrayList<>();
         for (int i = total - 1; i >= 0; i--) {
             ItemStack s = stacks.getStackInSlot(i);
@@ -131,38 +135,69 @@ public final class LoopSlotMirror {
         }
         Collections.reverse(ourSlots);
 
-        List<ItemStack> needed = new ArrayList<>(desired.size());
-        for (ItemStack d : desired) {
-            needed.add(mirrorCopy(d));
+        List<Want> needed = new ArrayList<>(desired.size());
+        for (Want w : desired) {
+            needed.add(new Want(mirrorCopy(w.stack()), w.render()));
         }
 
-        // Pass 1: a slot whose mirror is still wanted keeps it, untouched.
+        // Pass 1: keep a slot whose mirror is still wanted; make its render flag match.
         boolean[] keep = new boolean[ourSlots.size()];
         for (int k = 0; k < ourSlots.size(); k++) {
-            ItemStack cur = stacks.getStackInSlot(ourSlots.get(k));
+            int idx = ourSlots.get(k);
+            ItemStack cur = stacks.getStackInSlot(idx);
             if (!isMirror(cur)) continue;
-            for (Iterator<ItemStack> it = needed.iterator(); it.hasNext(); ) {
-                if (ItemStack.matches(cur, it.next())) {
+            for (Iterator<Want> it = needed.iterator(); it.hasNext(); ) {
+                Want w = it.next();
+                if (ItemStack.matches(cur, w.stack())) {
                     it.remove();
                     keep[k] = true;
+                    setRender(player, stacksHandler, type, idx, w.render());
                     break;
                 }
             }
         }
 
-        // Pass 2: fill the leftovers into free slots, clear the mirrors that are no longer wanted.
+        // Pass 2: fill leftovers, clear no-longer-wanted mirrors.
         for (int k = 0; k < ourSlots.size(); k++) {
             if (keep[k]) continue;
             int idx = ourSlots.get(k);
             ItemStack cur = stacks.getStackInSlot(idx);
 
             if (!needed.isEmpty()) {
-                if (settling && cur.isEmpty() && !isMirror(cur)) continue; // let the new slot count sync first
-                stacks.setStackInSlot(idx, needed.remove(0));
+                if (settling && cur.isEmpty() && !isMirror(cur)) continue;
+                Want w = needed.remove(0);
+                stacks.setStackInSlot(idx, w.stack());
+                setRender(player, stacksHandler, type, idx, w.render());
             } else if (isMirror(cur)) {
                 stacks.setStackInSlot(idx, ItemStack.EMPTY);
             }
         }
+    }
+
+    /** Set a granted slot's Curios render flag and tell the client, if it changed. */
+    private static void setRender(ServerPlayer player, ICurioStacksHandler stacksHandler, String type,
+                                  int index, boolean render) {
+        var renders = stacksHandler.getRenders();
+        if (index >= renders.size() || renders.get(index) == render) return;
+        renders.set(index, render);
+        PacketDistributor.sendToPlayersTrackingEntityAndSelf(player,
+                new SPacketSyncRender(player.getId(), type, index, render));
+    }
+
+    public static int grantedCount(Player player, String type) {
+        ICuriosItemHandler handler = CuriosApi.getCuriosInventory(player).orElse(null);
+        if (handler == null) return 0;
+        int count = 0;
+        for (SlotResult worn : handler.findCurios(s -> s.getItem() instanceof HungryLoopItem && !isMirror(s))) {
+            LoopContents data = worn.stack()
+                    .getOrDefault(ModDataComponents.LOOP_CONTENTS.get(), LoopContents.DEFAULT);
+            for (ItemStack contained : data.items()) {
+                if (!contained.isEmpty() && ContentForwarding.resolveSlot(contained, player).equals(type)) {
+                    count++;
+                }
+            }
+        }
+        return count;
     }
 
     private static void purgeStrayMirrors(ServerPlayer player) {
@@ -175,33 +210,6 @@ public final class LoopSlotMirror {
         if (isMirror(player.containerMenu.getCarried())) {
             player.containerMenu.setCarried(ItemStack.EMPTY);
         }
-    }
-
-    /**
-     * How many slots of {@code type} the player's worn loops grant right now. The Curios screen hides
-     * exactly this many trailing slots of the type, whether their mirrors have arrived yet or not.
-     */
-    public static int grantedCount(net.minecraft.world.entity.player.Player player, String type) {
-        ICuriosItemHandler handler = CuriosApi.getCuriosInventory(player).orElse(null);
-        if (handler == null) return 0;
-
-        int count = 0;
-        for (ItemStack loop : wornLoops(handler)) {
-            LoopContents data = loop.getOrDefault(ModDataComponents.LOOP_CONTENTS.get(), LoopContents.DEFAULT);
-            for (ItemStack contained : data.items()) {
-                if (!contained.isEmpty() && ContentForwarding.resolveSlot(contained, player).equals(type)) {
-                    count++;
-                }
-            }
-        }
-        return count;
-    }
-
-    private static List<ItemStack> wornLoops(ICuriosItemHandler handler) {
-        List<ItemStack> loops = new ArrayList<>();
-        handler.findCurios(stack -> stack.getItem() instanceof HungryLoopItem && !isMirror(stack))
-                .forEach(result -> loops.add(result.stack()));
-        return loops;
     }
 
     public static boolean isMirror(ItemStack stack) {

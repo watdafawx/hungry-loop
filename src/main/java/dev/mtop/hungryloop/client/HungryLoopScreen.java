@@ -47,7 +47,7 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
     @Override
     protected void init() {
         super.init();
-        this.titleLabelX = 8;
+        this.titleLabelX = 20;
         this.titleLabelY = 7;
         this.xpBarY = HungryLoopMenu.PLAYER_INV_Y - 34;
         this.feedW = 72;
@@ -80,6 +80,9 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
         g.drawString(font, count, x + imageWidth - 8 - font.width(count), y + 7,
                 data.shiny() ? SHINY : 0xFFE7C9A6, false);
 
+        // master cosmetics toggle
+        drawEye(g, x + 6, y + 5, data.selfRenders(), inEye(mouseX, mouseY, x + 6, y + 5));
+
         // constellation lines, faintly breathing
         int lineReal = withAlpha(LINE_REAL, 0x40 + Math.round(breathe * 0x40));
         for (int i = 0; i + 1 < cap; i++) {
@@ -96,6 +99,9 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
             int sy = y + HungryLoopMenu.loopSlotY(i);
             if (i < total) {
                 well(g, sx, sy, WELL, WELL_EDGE);
+                if (i < data.items().size() && !data.items().get(i).isEmpty()) {
+                    drawEye(g, sx + 10, sy - 3, data.rendersItem(i), inEye(mouseX, mouseY, sx + 10, sy - 3));
+                }
             } else {
                 boolean isHover = i == hovered;
                 boolean isNext = i == total;
@@ -176,6 +182,11 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button == 0) {
+            int eye = eyeButtonAt(mouseX, mouseY);
+            if (eye >= 0) {
+                send(eye);
+                return true;
+            }
             if (inFeed(mouseX, mouseY)) {
                 boolean star = menu.getCarried().is(Items.NETHER_STAR);
                 send(star ? HungryLoopMenu.BUTTON_STAR
@@ -226,6 +237,41 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
     }
 
     // --- drawing helpers --------------------------------------------------------------------
+
+    // --- render-toggle eyes -------------------------------------------------------------------
+
+    private static final int EYE = 7;
+
+    private boolean inEye(double mx, double my, int ex, int ey) {
+        return mx >= ex && mx < ex + EYE && my >= ey && my < ey + EYE;
+    }
+
+    private static void drawEye(GuiGraphics g, int ex, int ey, boolean open, boolean hover) {
+        g.fill(ex - 1, ey - 1, ex + EYE + 1, ey + EYE + 1, 0xC0000000);
+        int col = open ? (hover ? 0xFF9CF0FA : 0xFF6FD8E0) : (hover ? 0xFFB0A0A0 : 0xFF706868);
+        // lens
+        g.fill(ex, ey + 2, ex + EYE, ey + 5, col);
+        g.fill(ex + 1, ey + 1, ex + EYE - 1, ey + 6, col);
+        if (open) {
+            g.fill(ex + 2, ey + 2, ex + 5, ey + 5, 0xFF0C0912);
+            g.fill(ex + 3, ey + 3, ex + 4, ey + 4, 0xFFFFFFFF);
+        } else {
+            g.fill(ex, ey + 3, ex + EYE, ey + 4, 0xFF17131E); // slash through
+        }
+    }
+
+    /** Eye clicked over a loop slot, or the master eye. Returns the button id, or -1. */
+    private int eyeButtonAt(double mx, double my) {
+        LoopContents data = menu.loopData();
+        if (inEye(mx, my, leftPos + 6, topPos + 5)) return HungryLoopMenu.BUTTON_RENDER_SELF;
+        for (int i = 0; i < menu.unlockedSlots() && i < data.items().size(); i++) {
+            if (data.items().get(i).isEmpty()) continue;
+            int ex = leftPos + HungryLoopMenu.loopSlotX(i) + 10;
+            int ey = topPos + HungryLoopMenu.loopSlotY(i) - 3;
+            if (inEye(mx, my, ex, ey)) return HungryLoopMenu.BUTTON_RENDER_BASE + i;
+        }
+        return -1;
+    }
 
     // --- animation ------------------------------------------------------------------------------
 

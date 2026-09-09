@@ -45,8 +45,11 @@ public class HungryLoopMenu extends AbstractContainerMenu {
     public static final int BUTTON_FEED_ONE = 0;
     public static final int BUTTON_FEED_ALL = 1;
     public static final int BUTTON_STAR = 2;
-    /** Buttons {@code >= BUTTON_SLOT_BASE}: click the locked slot at (id - base) to unlock up to it. */
+    public static final int BUTTON_RENDER_SELF = 3;
+    /** Click the locked slot at {@code id - BUTTON_SLOT_BASE} to unlock up to it. */
     public static final int BUTTON_SLOT_BASE = 100;
+    /** Toggle the cosmetic render of contained item {@code id - BUTTON_RENDER_BASE}. */
+    public static final int BUTTON_RENDER_BASE = 200;
 
     private static final int SNAKE_COLS = 6;
     private static final int SNAKE_X0 = 18;
@@ -194,6 +197,19 @@ public class HungryLoopMenu extends AbstractContainerMenu {
         if (!(loop.getItem() instanceof HungryLoopItem)) return false;
 
         LoopContents data = loop.getOrDefault(ModDataComponents.LOOP_CONTENTS.get(), LoopContents.DEFAULT);
+
+        if (buttonId == BUTTON_RENDER_SELF || buttonId >= BUTTON_RENDER_BASE) {
+            LoopContents toggled = buttonId == BUTTON_RENDER_SELF
+                    ? data.toggleSelfRender()
+                    : data.toggleItemRender(buttonId - BUTTON_RENDER_BASE);
+            loop.set(ModDataComponents.LOOP_CONTENTS.get(), toggled);
+            locator.afterChange(who, loop);
+            if (who instanceof ServerPlayer sp) {
+                LoopSlotMirror.sync(sp, true);
+            }
+            broadcastChanges();
+            return true;
+        }
 
         if (buttonId == BUTTON_STAR) {
             ItemStack carried = getCarried();
