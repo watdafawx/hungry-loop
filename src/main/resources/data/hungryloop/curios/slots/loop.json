@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "add_cosmetic": false,
+  "render_toggle": true,
+  "drop_rule": "DEFAULT",
+  "size": 0,
+  "order": 210,
+  "operation": "SET"
+}

@@ -27,6 +27,10 @@ public final class Config {
             .comment("Hard ceiling on a loop's total slots, however many stars are fed.")
             .defineInRange("absoluteMaxSlots", 24, 4, 54);
 
+    public static final ModConfigSpec.IntValue LOOP_SLOTS = BUILDER
+            .comment("How many dedicated Curios slots the player gets for wearing Hungry Loops.")
+            .defineInRange("loopSlots", 2, 0, 12);
+
     public static final ModConfigSpec SPEC = BUILDER.build();
 
     private Config() {}
@@ -54,6 +58,14 @@ public final class Config {
             return ABSOLUTE_MAX_SLOTS.get();
         } catch (IllegalStateException notLoadedYet) {
             return 24;
+        }
+    }
+
+    public static int loopSlots() {
+        try {
+            return LOOP_SLOTS.get();
+        } catch (IllegalStateException notLoadedYet) {
+            return 2;
         }
     }
 }

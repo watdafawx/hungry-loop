@@ -47,10 +47,19 @@ Approach (decided 2026-09-09): forwarding `ICurio.curioTick` is **not enough** �
 scan the player's real Curios inventory to find equipped items and drive their abilities centrally.
 So the loop **grants real Curios slots** and mirrors its contents into them.
 
-- [x] Register the loop as an `ICurioItem`; equippable in any slot via `#curios:curio`
+- [x] Register the loop as an `ICurioItem`. **Dedicated slot** `hungryloop:loop` (datapack
+      `curios/slots/loop.json` size 0 + `curios/entities/player.json`), count driven by config
+      `loopSlots` (default 2, live-reload) via a transient slot modifier from `LoopSlotProvider`.
+      `canEquip` restricts the loop to that slot only. (Was "any slot via #curios:curio" — Curios'
+      per-tick slot recompute + `loseStacks` on shrink made a loop in a *resizing* type churn
+      endlessly; a fixed-size dedicated slot sidesteps that entirely.)
 - [x] `HungryLoopCurio.getAttributeModifiers` returns **only** `SlotAttribute` grants — one extra
       slot per contained item, of that item's resolved type. Curios grows/shrinks them with the
       loop's equip state.
+- [x] **`LoopContents` value `equals`/`hashCode`** — the record's generated `equals` compared the
+      `List<ItemStack>` by reference (ItemStack has no value equals), so Curios' per-tick
+      `ItemStack.matches(loop, prevCopy)` was always false and it re-equipped the loop every tick.
+      Root cause of the flicker / phantom / ejected-curios reports.
 - [x] `LoopSlotMirror` — server tick (every 3t) + on menu close + on Curios-screen rebuild: fills
       the **trailing** granted slots with marked mirror copies (packed at the high indices, matching
       slots reused so unrelated items don't blip); clears stray mirrors on unequip / slot-modifier

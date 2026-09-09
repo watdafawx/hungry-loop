@@ -35,9 +35,12 @@ public final class HungryLoopCurio implements ICurioItem {
         return loop.getOrDefault(ModDataComponents.LOOP_CONTENTS.get(), LoopContents.DEFAULT);
     }
 
+    /** The loop's dedicated Curios slot type; its size is driven by {@code Config.loopSlots()}. */
+    public static final String LOOP_SLOT = "loop";
+
     @Override
     public boolean canEquip(SlotContext slotContext, ItemStack stack) {
-        return true; // generic "curio" slot - Curios accepts it anywhere
+        return slotContext.identifier().equals(LOOP_SLOT);
     }
 
     @Override
