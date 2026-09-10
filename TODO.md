@@ -213,11 +213,16 @@ So the loop **grants real Curios slots** and mirrors its contents into them.
 
 - [ ] Config (COMMON): base slot count, cost curve knobs, slot cap, loot weights, feature toggles
 - [ ] Balance pass with a real modpack's curio set
-- [x] **No item-render animation for the loop icon.** An `ItemRenderer#render` mixin used to bob
-      and breathe the loop in GUI slots. Don't bring it back: it mutated the caller's `PoseStack`
-      without push/pop, so the transform leaked into whatever drew next, and it fights any mod
-      that transforms hovered items (Item Zoom, in TNP Limitless 8). Animate our own screen, and
-      leave inventory/curio slot item rendering alone.
+- [x] **No item-render animation for the loop icon.** An `ItemRenderer#render` mixin used to bob and
+      breathe the loop in GUI slots. Don't bring it back. It mutated the caller's `PoseStack` without
+      a `pushPose`/`popPose`, so the leaked transform corrupted every item drawn after it in the same
+      screen — not just the loop. Found via ImmersiveUI (OctoStudios), whose
+      `AbstractContainerScreenMixin.renderSize` wraps `GuiGraphics.renderItem` inside
+      `AbstractContainerScreen#renderSlot` with its own hover scale; our un-popped matrix poisoned
+      its pose and the whole Curios screen rendered wrong. Animate our own screen only, and leave
+      inventory/curio slot item rendering alone.
+      (Our `isActive()`-based slot hiding *is* compatible with it: vanilla only calls `renderSlot`
+      for active slots, and ImmersiveUI injects inside that gate.)
 - [ ] Advancement / first-craft or first-find trigger `[?]`
 - [x] Recipe — normal (4-slot) loop is craftable: copper ingots (corners) + ender pearls (edges) +
       amethyst shard (centre). Shiny is loot-only.
