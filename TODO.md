@@ -66,13 +66,22 @@ So the loop **grants real Curios slots** and mirrors its contents into them.
       update / login
 - [x] `ContentForwarding.resolveSlot` deterministic (sorted candidates) so `getAttributeModifiers`
       and `LoopSlotMirror` always pick the same slot type for a multi-slot item
-- [x] `CurioSlotMixin` — mirror slots are read-only in the Curios screen (no dupe by yanking a copy)
-- [x] `CuriosContainerMixin` — hides the granted mirror slots from the Curios screen by trimming
-      `setPage`'s per-type `getSlots()` (and `getVisibleSlots()` for panel sizing) by the trailing
-      mirror count; a HEAD inject reconciles mirrors first so they're hidden on first render
-      (fresh worlds clean; a pre-fix save needs the loop re-equipped once to drop phantom slots)
-- [ ] Live-hide when the loop is equipped *while the Curios screen is already open* (rare) — new
-      slots show until reopen; matches how Curios handles other slot-granting items
+- [x] `CurioSlotMixin` — a mirror slot is `isActive() = false` (never rendered, hovered or
+      clicked) and read-only. **This is the whole hiding mechanism.** It must stay a pure
+      render/interaction flag: the Curios container's slot *list* is index-addressed by vanilla's
+      container sync, so it has to be identical on client and server.
+- [x] **Never trim the slot list.** An earlier `setPage` `getSlots()` redirect subtracted the mirror
+      count — but mirrors lag on the client, so mid-equip the two sides built different-length slot
+      lists (server `19→23→46→19`, client `19→20→21→23→…`). Vanilla then wrote the loop's own stack
+      into whatever slot sat at that index client-side and it stuck there: the "ghost loop" with a
+      full working tooltip. Removed, along with its `setPage` HEAD sync (which also fired ~20×/s).
+- [x] `CuriosPanelLayoutMixin` — after `setPage`, rewrites *presentation only* (slot `x`/`y`,
+      `grid`, `panelWidth`) so hidden slots leave no gaps and the player's own curios don't shuffle.
+      Needs an AT to drop `final` from `Slot#x`/`#y`. Multi-page panels are left alone.
+- [x] `PendingCurioStackSync` — Curios sends a slot's stack before the slot-count update, so an
+      early `SPacketSyncStack` would throw `Slot N not in valid range`. We *defer and replay* it
+      rather than dropping it; dropping lost the mirror for good, since the server never resends a
+      slot it considers settled.
 - [ ] Verify each: Apotheosis affix abilities, Relics abilities, Artifacts abilities all fire from
       a loop-held item
 - [x] Contained cosmetics render on the body (the mirrors are really equipped). Per-item + master
@@ -204,6 +213,11 @@ So the loop **grants real Curios slots** and mirrors its contents into them.
 
 - [ ] Config (COMMON): base slot count, cost curve knobs, slot cap, loot weights, feature toggles
 - [ ] Balance pass with a real modpack's curio set
+- [x] **No item-render animation for the loop icon.** An `ItemRenderer#render` mixin used to bob
+      and breathe the loop in GUI slots. Don't bring it back: it mutated the caller's `PoseStack`
+      without push/pop, so the transform leaked into whatever drew next, and it fights any mod
+      that transforms hovered items (Item Zoom, in TNP Limitless 8). Animate our own screen, and
+      leave inventory/curio slot item rendering alone.
 - [ ] Advancement / first-craft or first-find trigger `[?]`
 - [x] Recipe — normal (4-slot) loop is craftable: copper ingots (corners) + ender pearls (edges) +
       amethyst shard (centre). Shiny is loot-only.

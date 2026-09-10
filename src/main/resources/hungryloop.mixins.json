@@ -5,12 +5,10 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "CurioSlotMixin",
-    "CuriosPanelLayoutMixin",
-    "DebugSetPageMixin"
+    "CuriosPanelLayoutMixin"
   ],
   "client": [
-    "CuriosClientPacketsMixin",
-    "ItemRendererMixin"
+    "CuriosClientPacketsMixin"
   ],
   "injectors": {
     "defaultRequire": 1
