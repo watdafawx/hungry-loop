@@ -38,6 +38,13 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>Each mirror slot's Curios render flag tracks the loop's toggles: {@link LoopContents#selfRenders}
  * (or the loop's own slot being hidden) hides every contained cosmetic; {@link LoopContents#renderMask}
  * hides individual ones.
+ *
+ * <p><b>The granted slots are hidden purely by {@code CurioSlotMixin.isActive()}</b> - never by
+ * changing how many slots the Curios container builds. The container's slot list has to be identical
+ * on both sides, because vanilla syncs stacks into it by raw index; trimming it by the mirror count
+ * (which lags on the client) made the two lists different lengths mid-equip and dropped the loop's
+ * own stack into whatever slot happened to sit at that index client-side - a ghost copy that then
+ * stuck, since the server never resends a slot it considers settled.
  */
 @EventBusSubscriber(modid = HungryLoop.MODID)
 public final class LoopSlotMirror {
@@ -180,9 +187,8 @@ public final class LoopSlotMirror {
     }
 
     /**
-     * Mirrors {@code desired} into this type's <em>trailing</em> slots and nowhere else. Keeping the
-     * mirrors packed at the high indices is what lets the Curios screen hide them by simply trimming
-     * the slot count ({@link #hiddenSlotCount}).
+     * Mirrors {@code desired} into this type's <em>trailing</em> slots and nowhere else, so the
+     * player's own curios keep their slot indices and the loop's additions stay grouped at the end.
      *
      * <p>A trailing slot that already holds a mirror of a still-wanted item type is left completely
      * alone - we only match on the item, not its data. Relics/Artifacts/Apotheosis mutate the live
@@ -254,27 +260,6 @@ public final class LoopSlotMirror {
         renders.set(index, render);
         PacketDistributor.sendToPlayersTrackingEntityAndSelf(player,
                 new SPacketSyncRender(player.getId(), type, index, render));
-    }
-
-    /**
-     * How many of this handler's trailing slots are mirror slots the loop granted, and so should be
-     * hidden from the Curios screen. Counting the mirror stacks actually present - rather than what
-     * the loop's contents imply - is the safe signal: a base slot never holds a mirror, so this can
-     * only ever hide slots the loop added. The server places the mirrors in {@code setPage}'s HEAD
-     * hook before this runs; on the client they arrive with Curios' stack sync and this converges a
-     * tick or two after a curio change.
-     */
-    public static int hiddenSlotCount(top.theillusivec4.curios.api.type.inventory.IDynamicStackHandler stacks) {
-        // Every mirror in the handler, not just the trailing run: mirrorInto always parks them at the
-        // high indices, so this equals the count of real (visible) slots, and it stays right even
-        // while the client is a mirror or two behind mid-equip (a trailing-only count would read 0
-        // the instant the very last mirror hasn't landed yet). CurioSlotMixin's isActive() catches
-        // any straggler that a transient undercount would otherwise leave on screen.
-        int count = 0;
-        for (int i = 0; i < stacks.getSlots(); i++) {
-            if (isMirror(stacks.getStackInSlot(i))) count++;
-        }
-        return count;
     }
 
     private static void purgeStrayMirrors(ServerPlayer player) {

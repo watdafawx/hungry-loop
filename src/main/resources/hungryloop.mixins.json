@@ -5,7 +5,7 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "CurioSlotMixin",
-    "CuriosContainerMixin"
+    "DebugSetPageMixin"
   ],
   "client": [
     "CuriosClientPacketsMixin",
