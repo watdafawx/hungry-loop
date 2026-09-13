@@ -4,17 +4,23 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import dev.mtop.hungryloop.component.LoopContents;
 import dev.mtop.hungryloop.component.ModDataComponents;
+import dev.mtop.hungryloop.item.HungryLoopItem;
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.Holder;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import top.theillusivec4.curios.api.SlotAttribute;
 import top.theillusivec4.curios.api.SlotContext;
 import top.theillusivec4.curios.api.type.capability.ICurioItem;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * The loop's Curios behaviour. It grants nothing of its own and forwards no effects directly -
@@ -63,5 +69,21 @@ public final class HungryLoopCurio implements ICurioItem {
                         AttributeModifier.Operation.ADD_VALUE)));
 
         return modifiers;
+    }
+
+    /**
+     * Curios renders the modifiers above as one "+N &lt;Type&gt; Slot(s)" line per distinct type,
+     * under a blank line + the gold "curios.modifiers.loop" header. A loop's contents can span a
+     * dozen types, so condense those lines into one to keep the tooltip short. {@code tooltips} is
+     * exactly [blank, header, line, line, ...] for us since the loop has only the one slot type.
+     */
+    @Override
+    public List<Component> getAttributesTooltip(List<Component> tooltips, Item.TooltipContext context,
+                                                 ItemStack stack) {
+        if (tooltips.size() < 3) return tooltips;
+        String joined = tooltips.subList(2, tooltips.size()).stream()
+                .map(Component::getString)
+                .collect(Collectors.joining(", "));
+        return List.of(tooltips.get(0), tooltips.get(1), Component.literal(joined).withStyle(ChatFormatting.BLUE));
     }
 }

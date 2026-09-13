@@ -41,7 +41,7 @@ public final class LoopSlotProvider {
                 && !result.has(ModDataComponents.LOOP_CONTENTS.get())) {
             result.set(ModDataComponents.LOOP_CONTENTS.get(),
                     new LoopContents(Config.startSlots(false), 0, 0, false, 0, List.of(),
-                            LoopContents.LOOP_MODE, LoopContents.ALL_RENDER, true));
+                            LoopContents.ALL_RENDER, true));
         }
     }
 

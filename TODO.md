@@ -91,10 +91,9 @@ So the loop **grants real Curios slots** and mirrors its contents into them.
 - [ ] Multiple loops, loop-in-loop guard under the new model
 - [x] Right-click opens the menu (hand + in-GUI, deferred); **keybind** (`H`, rebindable) opens it
       from anywhere incl. creative inventory (`net.OpenLoopPayload`)
-- [x] **Passthrough select** — shift-scroll on a held loop cycles a selected contained item; the
-      loop's name/tooltip show it and right-click forwards to that item's `use`/`useOn`
-      (`net.CycleLoopPayload`, `LoopContents.selected`). Caveat: items that read the held stack
-      mid-use won't behave perfectly
+- [x] ~~Passthrough select~~ — shift-scroll cycled a selected contained item so the loop acted as
+      it; removed (never worked reliably, and its tooltip clipped off-screen). No replacement
+      trigger for a relic's own ability from inside the loop yet
 - [x] **Relic "+" badge** — one green `+` on the loop when any contained relic has an ability to
       research or level up (`RegisterItemDecorationsEvent` → `integration/relics/RelicsBadge`)
 
@@ -137,8 +136,6 @@ So the loop **grants real Curios slots** and mirrors its contents into them.
       `slotsPerStar` (2), `absoluteMaxSlots` (24). Cap is derived live so a config change hits
       existing loops (`LoopContents.capBonus` stores only the star bonus).
 - [x] Click a locked slot to unlock it; hover shows the cumulative XP-level cost
-- [x] Shift-scroll cycles the passthrough item on a held **or equipped** loop; hotbar overlay
-      message shows the new selection
 - [x] Consume player XP levels, bank partial progress in `storedXp`, grow `bonusSlots`, level-up
       sound, reopen menu to show new slots
 - [x] Progress persists on the stack (component); loop is `stacksTo(1)`
@@ -178,7 +175,6 @@ So the loop **grants real Curios slots** and mirrors its contents into them.
       lines join every point on the path; bigger panel (218×246); no drop-shadow
 - [ ] GUI still-wanted: true infinite/pannable canvas for the slot area (for big caps); loop icon
       in the header; a "maw" motif for the feed area; real art for slot wells + panel
-- [x] Passthrough-selected item shown in the loop's name / tooltip
 
 ## Phase 7 — Loot & the shiny variant
 

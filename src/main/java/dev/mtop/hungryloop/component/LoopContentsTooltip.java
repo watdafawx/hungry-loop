@@ -9,5 +9,5 @@ import java.util.List;
  * Carries the loop's contents to the client tooltip renderer ({@code client.ClientLoopContentsTooltip}),
  * which draws each item's icon + its own tooltip lines, paginated.
  */
-public record LoopContentsTooltip(List<ItemStack> contents, int selected) implements TooltipComponent {
+public record LoopContentsTooltip(List<ItemStack> contents) implements TooltipComponent {
 }

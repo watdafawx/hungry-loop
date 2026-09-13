@@ -1,15 +1,12 @@
 package dev.mtop.hungryloop.net;
 
 import dev.mtop.hungryloop.HungryLoop;
-import dev.mtop.hungryloop.component.LoopContents;
-import dev.mtop.hungryloop.component.ModDataComponents;
 import dev.mtop.hungryloop.item.HungryLoopItem;
 import dev.mtop.hungryloop.menu.HungryLoopMenu;
 import dev.mtop.hungryloop.menu.LoopLocator;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Inventory;
-import net.minecraft.world.item.ItemStack;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
@@ -25,7 +22,6 @@ public final class ModNetwork {
     static void register(RegisterPayloadHandlersEvent event) {
         var registrar = event.registrar("1");
         registrar.playToServer(OpenLoopPayload.TYPE, OpenLoopPayload.STREAM_CODEC, ModNetwork::onOpen);
-        registrar.playToServer(CycleLoopPayload.TYPE, CycleLoopPayload.STREAM_CODEC, ModNetwork::onCycle);
     }
 
     private static void onOpen(OpenLoopPayload payload, IPayloadContext context) {
@@ -35,20 +31,6 @@ public final class ModNetwork {
         if (locator != null) {
             HungryLoopMenu.open(player, locator);
         }
-    }
-
-    private static void onCycle(CycleLoopPayload payload, IPayloadContext context) {
-        if (!(context.player() instanceof ServerPlayer player)) return;
-
-        LoopLocator locator = findLoop(player);
-        if (locator == null) return;
-
-        ItemStack loop = locator.resolve(player);
-        if (!(loop.getItem() instanceof HungryLoopItem)) return;
-
-        LoopContents data = loop.getOrDefault(ModDataComponents.LOOP_CONTENTS.get(), LoopContents.DEFAULT);
-        loop.set(ModDataComponents.LOOP_CONTENTS.get(), data.cycleSelected(payload.direction()));
-        locator.afterChange(player, loop); // re-seat so a curio-slot loop re-syncs
     }
 
     /** First loop found on the player: hand, then inventory, then a curio slot. */

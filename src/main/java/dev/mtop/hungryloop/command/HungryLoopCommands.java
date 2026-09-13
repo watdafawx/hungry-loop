@@ -83,7 +83,7 @@ public final class HungryLoopCommands {
         int base = Math.min(slots, LoopContents.MAX_SHINY_BASE_SLOTS);
         int bonus = slots - base;
         // capBonus 0, then bump it just enough that this many slots fit under the cap
-        LoopContents data = new LoopContents(base, bonus, 0, shiny, 0, List.of(), LoopContents.LOOP_MODE, LoopContents.ALL_RENDER, true);
+        LoopContents data = new LoopContents(base, bonus, 0, shiny, 0, List.of(), LoopContents.ALL_RENDER, true);
         int capBonus = Math.max(0, slots - data.slotCap());
 
         ItemStack loop = new ItemStack(ModItems.HUNGRY_LOOP.get());

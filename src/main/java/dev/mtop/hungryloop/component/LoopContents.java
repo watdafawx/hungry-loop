@@ -8,7 +8,6 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.world.item.ItemStack;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -22,20 +21,18 @@ import java.util.Objects;
  * @param shiny       loot-forged variant.
  * @param storedXp    experience banked toward the next slot.
  * @param items       contained curios, one per occupied sub-slot, in slot order.
- * @param selected    passthrough selection: {@code -1} = acts as itself; {@code >= 0} indexes items.
  * @param renderMask  bit {@code i} set = contained item {@code i}'s cosmetic renders on the body.
  * @param selfRenders master toggle - {@code false} hides every contained cosmetic at once.
  */
 public record LoopContents(int baseSlots, int bonusSlots, int capBonus, boolean shiny, int storedXp,
-                           List<ItemStack> items, int selected, long renderMask, boolean selfRenders) {
+                           List<ItemStack> items, long renderMask, boolean selfRenders) {
 
     public static final int MIN_BASE_SLOTS = 4;
     public static final int MAX_SHINY_BASE_SLOTS = 8;
-    public static final int LOOP_MODE = -1;
     public static final long ALL_RENDER = -1L;
 
     public static final LoopContents DEFAULT =
-            new LoopContents(MIN_BASE_SLOTS, 0, 0, false, 0, List.of(), LOOP_MODE, ALL_RENDER, true);
+            new LoopContents(MIN_BASE_SLOTS, 0, 0, false, 0, List.of(), ALL_RENDER, true);
 
     public static final Codec<LoopContents> CODEC = RecordCodecBuilder.create(i -> i.group(
             Codec.intRange(MIN_BASE_SLOTS, MAX_SHINY_BASE_SLOTS).fieldOf("base_slots").forGetter(LoopContents::baseSlots),
@@ -44,7 +41,6 @@ public record LoopContents(int baseSlots, int bonusSlots, int capBonus, boolean 
             Codec.BOOL.optionalFieldOf("shiny", false).forGetter(LoopContents::shiny),
             Codec.INT.optionalFieldOf("stored_xp", 0).forGetter(LoopContents::storedXp),
             ItemStack.OPTIONAL_CODEC.listOf().optionalFieldOf("items", List.of()).forGetter(LoopContents::items),
-            Codec.INT.optionalFieldOf("selected", LOOP_MODE).forGetter(LoopContents::selected),
             Codec.LONG.optionalFieldOf("render_mask", ALL_RENDER).forGetter(LoopContents::renderMask),
             Codec.BOOL.optionalFieldOf("self_renders", true).forGetter(LoopContents::selfRenders)
     ).apply(i, LoopContents::new));
@@ -57,7 +53,6 @@ public record LoopContents(int baseSlots, int bonusSlots, int capBonus, boolean 
                 buf.writeBoolean(v.shiny);
                 buf.writeVarInt(v.storedXp);
                 ItemStack.OPTIONAL_LIST_STREAM_CODEC.encode(buf, v.items);
-                buf.writeVarInt(v.selected);
                 buf.writeLong(v.renderMask);
                 buf.writeBoolean(v.selfRenders);
             },
@@ -68,7 +63,6 @@ public record LoopContents(int baseSlots, int bonusSlots, int capBonus, boolean 
                     buf.readBoolean(),
                     buf.readVarInt(),
                     ItemStack.OPTIONAL_LIST_STREAM_CODEC.decode(buf),
-                    buf.readVarInt(),
                     buf.readLong(),
                     buf.readBoolean()));
 
@@ -126,40 +120,12 @@ public record LoopContents(int baseSlots, int bonusSlots, int capBonus, boolean 
             banked -= cost;
             bonus++;
         }
-        return new LoopContents(base, bonus, capBonus, shiny, banked, items, selected, renderMask, selfRenders);
+        return new LoopContents(base, bonus, capBonus, shiny, banked, items, renderMask, selfRenders);
     }
 
     public LoopContents withCapBonus(int newCapBonus) {
         return new LoopContents(baseSlots, bonusSlots, Math.max(0, newCapBonus), shiny, storedXp,
-                items, selected, renderMask, selfRenders);
-    }
-
-    // --- passthrough -----------------------------------------------------------------------
-
-    public boolean loopMode() {
-        return selected < 0 || selectedStack().isEmpty();
-    }
-
-    public ItemStack selectedStack() {
-        return selected >= 0 && selected < items.size() ? items.get(selected) : ItemStack.EMPTY;
-    }
-
-    public LoopContents withSelected(int newSelected) {
-        return new LoopContents(baseSlots, bonusSlots, capBonus, shiny, storedXp, items, newSelected,
-                renderMask, selfRenders);
-    }
-
-    public LoopContents cycleSelected(int direction) {
-        List<Integer> stops = new ArrayList<>();
-        stops.add(LOOP_MODE);
-        for (int idx = 0; idx < items.size(); idx++) {
-            if (!items.get(idx).isEmpty()) stops.add(idx);
-        }
-        int current = selected >= 0 && selected < items.size() && !items.get(selected).isEmpty()
-                ? selected : LOOP_MODE;
-        int here = stops.indexOf(current);
-        int next = Math.floorMod(here + Integer.signum(direction), stops.size());
-        return withSelected(stops.get(next));
+                items, renderMask, selfRenders);
     }
 
     // --- render toggles --------------------------------------------------------------------
@@ -170,12 +136,12 @@ public record LoopContents(int baseSlots, int bonusSlots, int capBonus, boolean 
 
     public LoopContents toggleItemRender(int index) {
         if (index < 0 || index >= 64) return this;
-        return new LoopContents(baseSlots, bonusSlots, capBonus, shiny, storedXp, items, selected,
+        return new LoopContents(baseSlots, bonusSlots, capBonus, shiny, storedXp, items,
                 renderMask ^ (1L << index), selfRenders);
     }
 
     public LoopContents toggleSelfRender() {
-        return new LoopContents(baseSlots, bonusSlots, capBonus, shiny, storedXp, items, selected,
+        return new LoopContents(baseSlots, bonusSlots, capBonus, shiny, storedXp, items,
                 renderMask, !selfRenders);
     }
 
@@ -203,7 +169,7 @@ public record LoopContents(int baseSlots, int bonusSlots, int capBonus, boolean 
         if (this == o) return true;
         if (!(o instanceof LoopContents other)) return false;
         if (baseSlots != other.baseSlots || bonusSlots != other.bonusSlots || capBonus != other.capBonus
-                || shiny != other.shiny || storedXp != other.storedXp || selected != other.selected
+                || shiny != other.shiny || storedXp != other.storedXp
                 || renderMask != other.renderMask || selfRenders != other.selfRenders
                 || items.size() != other.items.size()) {
             return false;
@@ -216,7 +182,7 @@ public record LoopContents(int baseSlots, int bonusSlots, int capBonus, boolean 
 
     @Override
     public int hashCode() {
-        int h = Objects.hash(baseSlots, bonusSlots, capBonus, shiny, storedXp, selected, renderMask,
+        int h = Objects.hash(baseSlots, bonusSlots, capBonus, shiny, storedXp, renderMask,
                 selfRenders, items.size());
         for (ItemStack s : items) {
             h = 31 * h + ItemStack.hashItemAndComponents(s);
@@ -230,8 +196,7 @@ public record LoopContents(int baseSlots, int bonusSlots, int capBonus, boolean 
             if (!newItems.get(slot).isEmpty()) lastUsed = slot;
         }
         List<ItemStack> trimmed = List.copyOf(newItems.subList(0, lastUsed + 1));
-        int newSelected = selected >= trimmed.size() ? LOOP_MODE : selected;
-        return new LoopContents(baseSlots, bonusSlots, capBonus, shiny, storedXp, trimmed, newSelected,
+        return new LoopContents(baseSlots, bonusSlots, capBonus, shiny, storedXp, trimmed,
                 renderMask, selfRenders);
     }
 }

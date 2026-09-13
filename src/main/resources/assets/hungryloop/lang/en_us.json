@@ -3,10 +3,9 @@
 
   "itemGroup.hungryloop": "The Hungry Loop",
 
-  "hungryloop.name.passthrough": "The Hungry Loop ▸ %s",
+  "curios.modifiers.loop": "Loop Contents",
 
   "hungryloop.tooltip.slots": "%s/%s slots",
-  "hungryloop.tooltip.selected": "Acting as: %s  (shift-scroll to change)",
   "hungryloop.tooltip.shiny": "Shiny — forged with %s slots",
   "hungryloop.tooltip.xp_to_next": "%s XP levels to next slot",
   "hungryloop.tooltip.max_slots": "Fully fed — no more slots can be added",
@@ -26,9 +25,6 @@
   "hungryloop.slot.locked": "Slot %s — locked",
   "hungryloop.slot.cost": "%s XP levels to unlock",
   "hungryloop.slot.click": "Click to unlock",
-
-  "hungryloop.overlay.loop": "The Hungry Loop",
-  "hungryloop.overlay.selected": "▸ %s",
 
   "key.categories.hungryloop": "The Hungry Loop",
   "key.hungryloop.open": "Open the Hungry Loop",
