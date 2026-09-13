@@ -1,6 +1,9 @@
 package dev.mtop.hungryloop.curio;
 
+import dev.mtop.hungryloop.HungryLoop;
+import dev.mtop.hungryloop.integration.apotheosis.ApothSlots;
 import net.minecraft.world.entity.LivingEntity;
+import net.neoforged.fml.ModList;
 import net.minecraft.world.item.ItemStack;
 import top.theillusivec4.curios.api.CuriosApi;
 
@@ -21,13 +24,25 @@ public final class ContentForwarding {
 
     private ContentForwarding() {}
 
+    private static final boolean APOTHEOSIS = ModList.get().isLoaded(HungryLoop.APOTHEOSIS);
+
     public static String resolveSlot(ItemStack stack, LivingEntity wearer) {
         // Sorted so the choice is deterministic: getItemStackSlots' key order isn't stable, and if
         // getAttributeModifiers and LoopSlotMirror pick different types for the same item we end up
         // granting one slot type and mirroring into another.
         List<String> slots = new ArrayList<>(CuriosApi.getItemStackSlots(stack, wearer).keySet());
+        // Wildcard curios are valid in the loop's own slot type too; never mirror into it.
+        slots.remove(HungryLoopCurio.LOOP_SLOT);
         if (slots.isEmpty()) return GENERIC_SLOT;
         slots.sort(null);
+
+        // An affixed item only works from the slot type its Apotheosis loot category reads - for a
+        // wildcard tagged curios:curio that is "curio", which the preference below would otherwise
+        // skip in favour of whichever real type sorts first, silently killing every affix on it.
+        if (APOTHEOSIS) {
+            String affixSlot = ApothSlots.affixSlotType(stack).orElse(null);
+            if (affixSlot != null && slots.contains(affixSlot)) return affixSlot;
+        }
 
         for (String id : slots) {
             if (!id.equals(GENERIC_SLOT)) return id;
