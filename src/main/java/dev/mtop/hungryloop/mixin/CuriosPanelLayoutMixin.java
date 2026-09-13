@@ -1,5 +1,6 @@
 package dev.mtop.hungryloop.mixin;
 
+import dev.mtop.hungryloop.curio.CuriosRebuildGate;
 import dev.mtop.hungryloop.curio.LoopSlotMirror;
 import net.minecraft.util.Mth;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -39,6 +40,12 @@ public abstract class CuriosPanelLayoutMixin {
     @Shadow public int totalPages;
     @Shadow public int panelWidth;
     @Shadow public List<Integer> grid;
+
+    /** Skip a redundant rebuild forced by a Curios modifiers resync - see {@link CuriosRebuildGate}. */
+    @Inject(method = "resetSlots", at = @At("HEAD"), cancellable = true, remap = false)
+    private void hungryloop$skipRedundantRebuild(CallbackInfo ci) {
+        if (CuriosRebuildGate.trySkipRebuild((CuriosContainer) (Object) this)) ci.cancel();
+    }
 
     @Inject(method = "setPage", at = @At("TAIL"), remap = false)
     private void hungryloop$compactHiddenSlots(int page, CallbackInfo ci) {

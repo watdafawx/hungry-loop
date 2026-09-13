@@ -48,6 +48,7 @@ import top.theillusivec4.curios.client.gui.CuriosScreen;
 import top.theillusivec4.curios.common.inventory.CurioSlot;
 import top.theillusivec4.curios.common.inventory.container.CuriosContainer;
 import top.theillusivec4.curios.common.network.client.CPacketOpenCurios;
+import top.theillusivec4.curios.common.network.client.CPacketToggleRender;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -209,6 +210,8 @@ public final class SelfTest {
                 return true;
             }
             List<BooleanSupplier> suite = new ArrayList<>();
+            suite.addAll(idleChurnScenario(items, true));
+            suite.addAll(idleChurnScenario(items, false));
             suite.addAll(equipWhileOpenScenario(items));
             suite.addAll(provisionedMoves(items));
             suite.addAll(nestedLoopScenario(items));
@@ -306,6 +309,174 @@ public final class SelfTest {
             return true;
         });
         return seq;
+    }
+
+    /**
+     * With a loop worn and nothing happening, the Curios screen's slot list must not be rebuilt.
+     * Every rebuild replaces every {@code Slot} object, and anything keying state on slot identity
+     * (immersive-ui's hover animation) restarts. Also reports, server-side, which worn stack stopped
+     * matching its previous-tick copy and which component differed - that is what makes Curios
+     * cycle the stack's slot modifiers and resync the types they touch.
+     */
+    private static List<BooleanSupplier> idleChurnScenario(List<Item> items, boolean viaLoop) {
+        List<BooleanSupplier> seq = new ArrayList<>();
+        List<Item> contents = new ArrayList<>(items);
+        contents.addAll(onServer(SelfTest::multiTypeItems));
+        // Relics items carry live, ticking data (the reported churn came from a loop holding them).
+        BuiltInRegistries.ITEM.keySet().stream().filter(id -> id.getNamespace().equals(HungryLoop.RELICS)).sorted()
+                .map(BuiltInRegistries.ITEM::get)
+                .filter(i -> CuriosApi.getCurio(new ItemStack(i)).isPresent() && !contents.contains(i))
+                .limit(8).forEach(contents::add);
+        log("idle-churn contents: " + contents.stream().map(i -> BuiltInRegistries.ITEM.getKey(i).toString()).toList());
+        String label = viaLoop ? "idle-churn-loop" : "idle-churn-direct";
+        if (viaLoop) {
+            seq.add(provision(label, List.of(loopOf(8, contents.toArray(Item[]::new)))));
+        } else {
+            seq.add(provision(label, List.of()));
+            waitTicks(seq, SETTLE); // let the previous loop's granted slots actually go away first
+            seq.add(() -> {
+                onServer(p -> { wearDirectly(p, contents); return null; });
+                return true;
+            });
+        }
+        openCuriosInto(seq);
+        waitTicks(seq, SETTLE * 2);
+        int[] rebuilds = {0};
+        int[] ticks = {0};
+        Slot[] firstSlot = new Slot[1];
+        Map<String, ItemStack> prev = new LinkedHashMap<>();
+        Map<String, Integer> changedByType = new LinkedHashMap<>();
+        List<String> componentNotes = new ArrayList<>();
+        seq.add(() -> {
+            firstSlot[0] = firstCurioSlot();
+            return true;
+        });
+        seq.add(() -> {
+            Slot now = firstCurioSlot();
+            if (now != firstSlot[0]) rebuilds[0]++;
+            firstSlot[0] = now;
+            onServer(p -> {
+                CuriosApi.getCuriosInventory(p).ifPresent(h -> h.getCurios().forEach((id, sh) -> {
+                    for (int i = 0; i < sh.getStacks().getSlots(); i++) {
+                        String key = id + ":" + i;
+                        ItemStack cur = sh.getStacks().getStackInSlot(i);
+                        ItemStack old = prev.put(key, cur.copy());
+                        if (old != null && !ItemStack.matches(cur, old)) {
+                            changedByType.merge(key + " " + key(cur), 1, Integer::sum);
+                            if (componentNotes.size() < 6) componentNotes.add(key + " " + key(cur) + " changed: " + componentDiff(old, cur));
+                        }
+                    }
+                }));
+                return null;
+            });
+            return ++ticks[0] >= 100;
+        });
+        seq.add(() -> {
+            log(label + ": idle 100 ticks, client slot-list rebuilds=" + rebuilds[0] + ", relics worn (incl. mirrors) at end=" + onServer(p -> CuriosApi.getCuriosInventory(p).map(h -> h.findCurios(s -> BuiltInRegistries.ITEM.getKey(s.getItem()).getNamespace().equals(HungryLoop.RELICS)).size()).orElse(0)));
+            log("worn stacks that changed tick-to-tick (key -> ticks): " + changedByType);
+            componentNotes.forEach(n -> log("    " + n));
+            record(label + "-no-rebuild", rebuilds[0] == 0 ? List.of()
+                    : List.of("Curios slot list rebuilt " + rebuilds[0] + "x in 100 idle ticks (restarts slot-keyed UI state)"));
+            // A resync replaces each handler's render list; a slot must read the current one, not a
+            // stale copy left behind by a skipped rebuild.
+            List<String> stale = new ArrayList<>();
+            CuriosApi.getCuriosInventory(Minecraft.getInstance().player).ifPresent(h -> {
+                for (Slot slot : Minecraft.getInstance().player.containerMenu.slots) {
+                    if (slot instanceof CurioSlot cs && !cs.isCosmetic()) {
+                        h.getStacksHandler(cs.getIdentifier()).ifPresent(sh -> {
+                            if (((dev.mtop.hungryloop.curio.CurioSlotRebind) cs).hungryloop$renders() != sh.getRenders()) {
+                                stale.add("slot " + cs.getIdentifier() + ":" + cs.getSlotIndex() + " reads a stale render list");
+                            }
+                        });
+                    }
+                }
+            });
+            record(label + "-slots-read-current-lists", stale);
+            if (!viaLoop) {
+                // Skipped rebuilds must not leave slots reading a stale render list: toggle a worn
+                // relic's render flag through Curios' own packet and check the on-screen slot sees it.
+                Slot target = null;
+                for (Slot slot : Minecraft.getInstance().player.containerMenu.slots) {
+                    if (slot instanceof CurioSlot cs && !cs.isCosmetic() && cs.getItem().getItem() != net.minecraft.world.item.Items.AIR
+                            && BuiltInRegistries.ITEM.getKey(cs.getItem().getItem()).getNamespace().equals(HungryLoop.RELICS)) {
+                        target = cs;
+                        break;
+                    }
+                }
+                if (target instanceof CurioSlot cs) {
+                    String id = cs.getIdentifier();
+                    int idx = cs.getSlotIndex();
+                    boolean before = cs.getRenderStatus();
+                    PacketDistributor.sendToServer(new CPacketToggleRender(id, idx));
+                    queueFront(List.of(waitStep(SETTLE), () -> {
+                        Slot now = curioSlot(id, idx);
+                        boolean server = onServer(p -> CuriosApi.getCuriosInventory(p).flatMap(h -> h.getStacksHandler(id))
+                                .map(sh -> sh.getRenders().get(idx)).orElse(true));
+                        List<String> fails = new ArrayList<>();
+                        if (server == before) fails.add("toggle didn't reach the server (test didn't exercise anything)");
+                        if (now instanceof CurioSlot slotNow && slotNow.getRenderStatus() != server) {
+                            fails.add("slot " + id + ":" + idx + " shows render=" + slotNow.getRenderStatus() + " but handler has " + server + " (stale render list)");
+                        }
+                        record(label + "-render-toggle-live", fails);
+                        return true;
+                    }));
+                } else {
+                    fail(label + "-render-toggle-live", "no worn relic slot on screen to toggle");
+                }
+            }
+            return true;
+        });
+        return seq;
+    }
+
+    /** Equip each item in the first free slot of its resolved type, no loop involved (control group). */
+    private static void wearDirectly(ServerPlayer p, List<Item> contents) {
+        CuriosApi.getCuriosInventory(p).ifPresent(h -> {
+            List<String> worn = new ArrayList<>();
+            List<Item> relicsFirst = new ArrayList<>(contents);
+            relicsFirst.sort(Comparator.comparing(i -> !BuiltInRegistries.ITEM.getKey(i).getNamespace().equals(HungryLoop.RELICS)));
+            for (Item item : relicsFirst) {
+                ItemStack stack = new ItemStack(item);
+                String type = ContentForwarding.resolveSlot(stack, p);
+                h.getStacksHandler(type).ifPresent(sh -> {
+                    for (int i = 0; i < sh.getSlots(); i++) {
+                        if (sh.getStacks().getStackInSlot(i).isEmpty()) {
+                            sh.getStacks().setStackInSlot(i, stack);
+                            worn.add(BuiltInRegistries.ITEM.getKey(item) + "@" + type + ":" + i);
+                            return;
+                        }
+                    }
+                });
+            }
+            log("worn directly: " + worn);
+        });
+    }
+
+    private static Slot firstCurioSlot() {
+        for (Slot slot : Minecraft.getInstance().player.containerMenu.slots) if (slot instanceof CurioSlot) return slot;
+        return null;
+    }
+
+    /** Which data components differ between two stacks of the same item. */
+    private static String componentDiff(ItemStack a, ItemStack b) {
+        if (!ItemStack.isSameItem(a, b) || a.getCount() != b.getCount()) return "item/count " + key(a) + " -> " + key(b);
+        List<String> diffs = new ArrayList<>();
+        Set<net.minecraft.core.component.DataComponentType<?>> types = new LinkedHashSet<>(a.getComponents().keySet());
+        types.addAll(b.getComponents().keySet());
+        for (var type : types) {
+            Object x = a.get(type);
+            Object y = b.get(type);
+            if (!java.util.Objects.equals(x, y)) {
+                diffs.add(BuiltInRegistries.DATA_COMPONENT_TYPE.getKey(type) + (java.util.Objects.equals(String.valueOf(x), String.valueOf(y))
+                        ? " (equals() false, same toString - broken equals)" : " " + abbreviate(x) + " -> " + abbreviate(y)));
+            }
+        }
+        return diffs.isEmpty() ? "no component differs (matches() false anyway)" : String.join("; ", diffs);
+    }
+
+    private static String abbreviate(Object o) {
+        String s = String.valueOf(o);
+        return s.length() > 80 ? s.substring(0, 77) + "..." : s;
     }
 
     /** A loop stored inside the loop must not be granted a slot it is never mirrored into. */
@@ -999,6 +1170,11 @@ public final class SelfTest {
     private static void waitTicks(List<BooleanSupplier> seq, int n) {
         int[] left = {n};
         seq.add(() -> --left[0] <= 0);
+    }
+
+    private static BooleanSupplier waitStep(int n) {
+        int[] left = {n};
+        return () -> --left[0] <= 0;
     }
 
     private static BooleanSupplier waitUntil(BooleanSupplier cond, int timeout, String failMsg) {

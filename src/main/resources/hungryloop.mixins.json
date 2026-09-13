@@ -8,6 +8,7 @@
     "CuriosPanelLayoutMixin"
   ],
   "client": [
+    "CuriosModifiersSyncMixin"
   ],
   "injectors": {
     "defaultRequire": 1

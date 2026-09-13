@@ -1,12 +1,19 @@
 package dev.mtop.hungryloop.mixin;
 
+import dev.mtop.hungryloop.curio.CurioSlotRebind;
 import dev.mtop.hungryloop.curio.LoopSlotMirror;
+import net.minecraft.core.NonNullList;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.items.IItemHandler;
 import net.neoforged.neoforge.items.SlotItemHandler;
 import top.theillusivec4.curios.common.inventory.CurioSlot;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Mutable;
+import org.spongepowered.asm.mixin.Shadow;
+
+import java.util.List;
 
 /**
  * Handles the Curios-screen slots that hold the loop's mirror stacks:
@@ -24,10 +31,25 @@ import org.spongepowered.asm.mixin.Mixin;
  * mixin adds the overrides (extending the real superclass to reach {@code super}).
  */
 @Mixin(CurioSlot.class)
-public abstract class CurioSlotMixin extends SlotItemHandler {
+public abstract class CurioSlotMixin extends SlotItemHandler implements CurioSlotRebind {
+
+    @Shadow @Final @Mutable private NonNullList<Boolean> renderStatuses;
+    @Shadow private List<Boolean> activeStatuses;
 
     private CurioSlotMixin(IItemHandler handler, int index, int x, int y) {
         super(handler, index, x, y);
+    }
+
+    /** See {@link dev.mtop.hungryloop.curio.CuriosRebuildGate}: keeps a slot valid across a skipped rebuild. */
+    @Override
+    public void hungryloop$rebind(NonNullList<Boolean> renders, List<Boolean> actives) {
+        this.renderStatuses = renders;
+        this.activeStatuses = actives;
+    }
+
+    @Override
+    public NonNullList<Boolean> hungryloop$renders() {
+        return renderStatuses;
     }
 
     @Override

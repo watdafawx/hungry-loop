@@ -88,11 +88,17 @@ So the loop **grants real Curios slots** and mirrors its contents into them.
       resize), and a rebuild gate on `getVisibleSlots()`. All three are **deleted**: `reconcile`
       sends the full inventory (sizes + stacks + client rebuild, atomically) once per real layout
       change. `client.SelfTest` fails without it (mutation-tested).
-- [x] **Don't suppress Curios' own `resetSlots()` on `SPacketSyncModifiers`.** Cooldown ticks on
-      worn mirrors fire it ~every tick, which restarts immersive-ui's hover animation (it keys state
-      on `Slot` object identity). Gating it on the visible-slot *total* can't see one type grow while
-      another shrinks → skipped rebuilds → ghosts. That rebuild is load-bearing; the animation is
-      immersive-ui's to fix.
+- [x] **Skip Curios' redundant screen rebuilds soundly (`curio.CuriosRebuildGate`).** Relics refreshes
+      its items' data every few ticks — worn directly *or* through a loop (SelfTest's idle-churn
+      control proved it isn't loop-specific) — and each change makes Curios send
+      `SPacketSyncModifiers`, whose client handler always `resetSlots()`: every `Slot` object is
+      replaced and immersive-ui's hover animation (keyed on slot identity) restarts. An earlier gate
+      on the visible-slot *total* was unsound (can't see one type grow while another shrinks → ghosts)
+      and was removed. The current gate only acts inside that handler, and only when the rebuild
+      would reproduce the slot list exactly (per-slot backing handler + index, per-type counts,
+      parking, single page, not cosmetics). `applySyncTag` replaces render/active lists, so a skip
+      rebinds each slot to the new lists (`CurioSlotMixin` via `CurioSlotRebind`). Mutation-tested:
+      no gate → idle rebuilds; no rebind → slots read stale render lists.
 - [x] **`client.SelfTest`** — `build.bat runSelftest` recreates a flat scratch world, provisions
       loops per scenario (equip/unequip under an open screen, same-tick + carried moves, nested loop,
       two loops, overflow), diffs client vs server slot by slot after each step (singleplayer shares
