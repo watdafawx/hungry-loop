@@ -88,14 +88,19 @@ public class HungryLoopMenu extends AbstractContainerMenu {
             super(contents, index, loopSlotX(index), loopSlotY(index));
         }
 
+        /**
+         * Unlocked slots, plus any slot holding an overflow item - contents past {@link
+         * #unlockedSlots()} are still equipped through Curios, so they have to be visible and
+         * removable rather than silently stranded. {@link #mayPlace} keeps them take-only.
+         */
         @Override
         public boolean isActive() {
-            return getContainerSlot() < unlockedSlots();
+            return getContainerSlot() < unlockedSlots() || hasItem();
         }
 
         @Override
         public boolean mayPlace(ItemStack stack) {
-            return isActive() && isEquippableCurio(stack);
+            return getContainerSlot() < unlockedSlots() && isEquippableCurio(stack);
         }
 
         @Override

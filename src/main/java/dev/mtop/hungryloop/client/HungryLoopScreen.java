@@ -95,10 +95,16 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
 
         int hovered = hoveredLockedSlot(mouseX, mouseY);
 
-        for (int i = 0; i < cap; i++) {
+        // Contents can overrun the capacity (a lowered cap, or loot/commands writing past it). Those
+        // items are still equipped through Curios, so draw a real well for them rather than a locked
+        // "+" ring with an item sitting on top - the menu keeps them take-only.
+        int drawCount = Math.max(cap, data.items().size());
+
+        for (int i = 0; i < drawCount; i++) {
             int sx = x + HungryLoopMenu.loopSlotX(i);
             int sy = y + HungryLoopMenu.loopSlotY(i);
-            if (i < total) {
+            boolean overflow = i >= total && i < data.items().size() && !data.items().get(i).isEmpty();
+            if (i < total || overflow) {
                 well(g, sx, sy, WELL, WELL_EDGE);
                 if (i < data.items().size() && !data.items().get(i).isEmpty()) {
                     drawEye(g, sx + 10, sy - 3, data.rendersItem(i), inEye(mouseX, mouseY, sx + 10, sy - 3));

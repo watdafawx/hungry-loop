@@ -59,7 +59,10 @@ public final class HungryLoopCurio implements ICurioItem {
         // shrinks these with the loop's equip state; LoopSlotMirror fills them.
         Map<String, Integer> grantsByType = new HashMap<>();
         for (ItemStack contained : contents(stack).items()) {
-            if (contained.isEmpty()) continue;
+            // Must skip exactly what LoopSlotMirror skips. A nested loop is never mirrored (it would
+            // mirror its own contents), so granting it a slot left that slot permanently empty - and an
+            // empty slot isn't a mirror, so it showed in the Curios panel as a stray visible slot.
+            if (contained.isEmpty() || contained.getItem() instanceof HungryLoopItem) continue;
             grantsByType.merge(ContentForwarding.resolveSlot(contained, slotContext.entity()), 1, Integer::sum);
         }
 

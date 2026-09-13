@@ -20,6 +20,7 @@ import top.theillusivec4.curios.api.event.SlotModifiersUpdatedEvent;
 import top.theillusivec4.curios.api.type.ICuriosMenu;
 import top.theillusivec4.curios.api.type.capability.ICuriosItemHandler;
 import top.theillusivec4.curios.api.type.inventory.ICurioStacksHandler;
+import top.theillusivec4.curios.common.network.server.sync.SPacketSyncCurios;
 import top.theillusivec4.curios.common.network.server.sync.SPacketSyncRender;
 
 import java.util.ArrayList;
@@ -52,6 +53,13 @@ public final class LoopSlotMirror {
     private static final int SYNC_INTERVAL = 3;
 
     /**
+     * Where {@code CuriosPanelLayoutMixin} parks a hidden (mirror-holding) slot: far enough off-panel
+     * that it can't be drawn or hovered, without overflowing. {@code client.SelfTest} also reads it: a
+     * slot holding a mirror that isn't parked (or a parked slot that doesn't) is a stale layout.
+     */
+    public static final int PARKED = -30000;
+
+    /**
      * Players whose mirrors are being reconciled right now. Writing a mirror stack makes Curios
      * recompute slot modifiers, which fires {@link SlotModifiersUpdatedEvent} again mid-sync; the
      * open Curios screen's {@code setPage} does the same. Without this guard those re-entrant calls
@@ -60,15 +68,41 @@ public final class LoopSlotMirror {
      */
     private static final Set<UUID> RECONCILING = ConcurrentHashMap.newKeySet();
 
+    /**
+     * Players whose last loop left a slot, pending a next-tick re-check. A move looks exactly like an
+     * unequip for one tick (leave fires before enter), so the purge waits to see which it was.
+     */
+    private static final Set<UUID> PURGE_PENDING = ConcurrentHashMap.newKeySet();
+
     private record Want(ItemStack stack, boolean render) {}
 
     private LoopSlotMirror() {}
 
     @SubscribeEvent
     static void onPlayerTick(PlayerTickEvent.Post event) {
-        if (event.getEntity() instanceof ServerPlayer player && player.tickCount % SYNC_INTERVAL == 0) {
+        if (!(event.getEntity() instanceof ServerPlayer player)) return;
+
+        if (PURGE_PENDING.remove(player.getUUID())) resolvePendingPurge(player);
+
+        if (player.tickCount % SYNC_INTERVAL == 0) {
             purgeStrayMirrors(player);
             sync(player, false);
+        }
+    }
+
+    /** A loop left a slot last tick: purge only if it really is gone, rather than mid-move. */
+    private static void resolvePendingPurge(ServerPlayer player) {
+        boolean anyLeft = CuriosApi.getCuriosInventory(player)
+                .map(h -> !h.findCurios(s -> s.getItem() instanceof HungryLoopItem && !isMirror(s)).isEmpty())
+                .orElse(false);
+        if (anyLeft) {
+            sync(player, true); // it was a move - reconcile against where the loop landed
+        } else if (RECONCILING.add(player.getUUID())) {
+            try {
+                purgeAllMirrors(player);
+            } finally {
+                RECONCILING.remove(player.getUUID());
+            }
         }
     }
 
@@ -90,12 +124,14 @@ public final class LoopSlotMirror {
                     .orElse(false);
             if (anyLeft) {
                 sync(player, true);
-            } else if (RECONCILING.add(player.getUUID())) {
-                try {
-                    purgeAllMirrors(player);
-                } finally {
-                    RECONCILING.remove(player.getUUID());
-                }
+            } else {
+                // Don't purge yet. Moving the loop between slots fires the leave event before the
+                // enter event, so "no loop equipped" is also what the middle of a move looks like -
+                // purging here tore down every mirror and rebuilt it a tick later, churning the whole
+                // curio inventory for what the player saw as dragging one item one slot across.
+                // Defer to the next tick and re-check: a real unequip still has no loop by then, a
+                // move does.
+                PURGE_PENDING.add(player.getUUID());
             }
         }
     }
@@ -137,8 +173,17 @@ public final class LoopSlotMirror {
         for (SlotResult worn : loops) {
             LoopContents data = worn.stack()
                     .getOrDefault(ModDataComponents.LOOP_CONTENTS.get(), LoopContents.DEFAULT);
-            boolean loopVisible = data.selfRenders() && slotRenders(handler,
-                    worn.slotContext().identifier(), worn.slotContext().index());
+            // The loop's own render state is the component's, not the slot's. Curios keeps render
+            // flags in a per-slot-index list, so reading the flag here meant the setting belonged to
+            // whichever slot the loop happened to sit in - move the loop and it picked up the new
+            // slot's default (visible), silently switching every contained cosmetic back on. Push the
+            // component into the slot instead, so the setting travels with the item. The loop slot
+            // type sets "render_toggle": false so Curios doesn't offer a second, conflicting button
+            // for it; the loop screen's own eye is the UI.
+            boolean loopVisible = data.selfRenders();
+            handler.getStacksHandler(worn.slotContext().identifier()).ifPresent(sh ->
+                    setRender(player, sh, worn.slotContext().identifier(),
+                            worn.slotContext().index(), data.selfRenders()));
 
             List<ItemStack> items = data.items();
             for (int i = 0; i < items.size(); i++) {
@@ -158,11 +203,21 @@ public final class LoopSlotMirror {
             }
         });
 
-        // The client's Curios screen only re-hides the granted slots when it rebuilds. Nudge it to
-        // do so once the mirror layout has actually changed, so the slots don't linger visible until
-        // the player closes and reopens the screen.
-        if (changed[0] && player.containerMenu instanceof ICuriosMenu menu) {
-            menu.resetSlots();
+        if (changed[0]) {
+            if (player.containerMenu instanceof ICuriosMenu menu) {
+                menu.resetSlots();
+            }
+            // Push the whole curio inventory, not the per-slot deltas Curios would otherwise trickle
+            // out. SPacketSyncStack addresses a slot by raw index, while SPacketSyncModifiers resizes
+            // the very list those indices address - and the loop resizes things constantly, so the
+            // two race: a slot's stack could arrive before the slot existed, or land in an index that
+            // meant something else by then, leaving a ghost the server never corrects.
+            // SPacketSyncCurios carries every handler's sizes and stacks together and rebuilds the
+            // client's slot list on arrival, so there is no window to race. This one packet replaced
+            // three client-side patches (a deferred/replayed stack sync, a per-packet screen rebuild,
+            // a rebuild gate); client.SelfTest's equip-while-open and move scenarios fail without it.
+            // Only on an actual layout change, so this is rare - not the per-tick cooldown churn.
+            PacketDistributor.sendToPlayer(player, new SPacketSyncCurios(player.getId(), handler.getCurios()));
         }
     }
 
@@ -178,12 +233,6 @@ public final class LoopSlotMirror {
                 }
             }
         });
-    }
-
-    private static boolean slotRenders(ICuriosItemHandler handler, String type, int index) {
-        return handler.getStacksHandler(type)
-                .map(sh -> index >= sh.getRenders().size() || sh.getRenders().get(index))
-                .orElse(true);
     }
 
     /**

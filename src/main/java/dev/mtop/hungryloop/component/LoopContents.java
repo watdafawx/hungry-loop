@@ -147,8 +147,20 @@ public record LoopContents(int baseSlots, int bonusSlots, int capBonus, boolean 
 
     // --- contents --------------------------------------------------------------------------
 
+    /**
+     * The contents as a slot-indexed list.
+     *
+     * <p>Sized to the <em>contents</em> when they overrun {@link #totalSlots()}, not to the capacity.
+     * The two can disagree - a lowered slot cap, or loot/commands writing past it - and the overflow
+     * items are still fully live: {@code LoopSlotMirror} reads {@link #items()} raw, so it grants and
+     * mirrors every one of them. Truncating here used to hide them from the loop screen while they
+     * stayed equipped in Curios, and since {@code HungryLoopMenu#persist} rebuilds the list from what
+     * the screen loaded, the next edit wrote them out of existence. Show them instead; the menu makes
+     * the overflow slots take-only so the loop drains back to capacity and can't grow past it.
+     */
     public NonNullList<ItemStack> toSlotList() {
-        NonNullList<ItemStack> list = NonNullList.withSize(totalSlots(), ItemStack.EMPTY);
+        NonNullList<ItemStack> list =
+                NonNullList.withSize(Math.max(totalSlots(), items.size()), ItemStack.EMPTY);
         for (int slot = 0; slot < Math.min(items.size(), list.size()); slot++) {
             list.set(slot, items.get(slot));
         }

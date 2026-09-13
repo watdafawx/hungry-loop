@@ -1,7 +1,7 @@
 {
   "replace": false,
   "add_cosmetic": false,
-  "render_toggle": true,
+  "render_toggle": false,
   "drop_rule": "DEFAULT",
   "size": 0,
   "order": 210,

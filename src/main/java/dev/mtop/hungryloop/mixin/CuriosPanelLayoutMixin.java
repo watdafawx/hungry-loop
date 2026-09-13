@@ -34,7 +34,7 @@ import java.util.List;
 public abstract class CuriosPanelLayoutMixin {
 
     /** Far enough off-panel that a parked slot can't be drawn or hovered, without overflowing. */
-    private static final int PARKED = -30000;
+    private static final int PARKED = LoopSlotMirror.PARKED;
 
     @Shadow public int totalPages;
     @Shadow public int panelWidth;
