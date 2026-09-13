@@ -78,10 +78,47 @@ So the loop **grants real Curios slots** and mirrors its contents into them.
 - [x] `CuriosPanelLayoutMixin` — after `setPage`, rewrites *presentation only* (slot `x`/`y`,
       `grid`, `panelWidth`) so hidden slots leave no gaps and the player's own curios don't shuffle.
       Needs an AT to drop `final` from `Slot#x`/`#y`. Multi-page panels are left alone.
-- [x] `PendingCurioStackSync` — Curios sends a slot's stack before the slot-count update, so an
-      early `SPacketSyncStack` would throw `Slot N not in valid range`. We *defer and replay* it
-      rather than dropping it; dropping lost the mirror for good, since the server never resends a
-      slot it considers settled.
+- [x] **Push the mirror layout as one `SPacketSyncCurios`, never as per-slot deltas.** Curios'
+      `SPacketSyncStack` addresses a slot by raw index while `SPacketSyncModifiers` resizes the list
+      those indices address; the loop resizes constantly, so the two raced. That race caused the
+      "Slot N not in valid range" disconnect, the ghost item on loop moves, and the stale screen
+      after equip. It used to be patched client-side three ways: `PendingCurioStackSync` (defer and
+      replay early stack syncs — replaying into a since-changed layout *was* the move ghost),
+      `CuriosClientPacketsMixin` (per-packet screen rebuild, first gated by a memo that went stale on
+      resize), and a rebuild gate on `getVisibleSlots()`. All three are **deleted**: `reconcile`
+      sends the full inventory (sizes + stacks + client rebuild, atomically) once per real layout
+      change. `client.SelfTest` fails without it (mutation-tested).
+- [x] **Don't suppress Curios' own `resetSlots()` on `SPacketSyncModifiers`.** Cooldown ticks on
+      worn mirrors fire it ~every tick, which restarts immersive-ui's hover animation (it keys state
+      on `Slot` object identity). Gating it on the visible-slot *total* can't see one type grow while
+      another shrinks → skipped rebuilds → ghosts. That rebuild is load-bearing; the animation is
+      immersive-ui's to fix.
+- [x] **`client.SelfTest`** — `build.bat runSelftest` recreates a flat scratch world, provisions
+      loops per scenario (equip/unequip under an open screen, same-tick + carried moves, nested loop,
+      two loops, overflow), diffs client vs server slot by slot after each step (singleplayer shares
+      the JVM, so a ghost is detected directly), screenshots every step, writes
+      `run/hungryloop-selftest.txt`, quits. `/hlselftest` runs the non-destructive moves in any world.
+      Dev-only. Before claiming a sync fix or deleting sync code, run it — and mutation-test new
+      scenarios (break the fix, confirm FAIL).
+- [x] Nested loop was granted a slot the mirror pass never fills (stray visible slot) —
+      `HungryLoopCurio` now skips loops exactly like `LoopSlotMirror`.
+- [x] Loop render toggle lived on the Curios *slot* (per-index flag), so moving the loop reset it —
+      the component's `selfRenders` is now pushed into whatever slot the loop occupies; the loop slot
+      type has `render_toggle: false`. Moves defer the all-mirror purge a tick (leave fires before
+      enter, so mid-move looked like an unequip).
+- [x] Contents beyond capacity (lowered cap, loot/commands) were hidden in the loop screen yet still
+      equipped, and the next edit deleted them — the screen now shows them take-only.
+- [ ] **Capacity policy**: when contents exceed capacity, keep them take-only (current) or eject?
+- [x] **Affixed items mirror into the slot Apotheosis reads.** ApothicAttributes' `CurioEquipmentSlot`
+      reads a category's affix stacks from exactly one Curios handler, and apothic_compats assigns
+      categories by curio tag — so wildcards tagged `curios:curio` (valid in every type) only fire
+      their affixes from `curio`, which `resolveSlot` used to skip in favour of `back`.
+      `integration/apotheosis/ApothSlots` now wins when Apotheosis is loaded; `loop` is never a
+      candidate. Verified by SelfTest's parity scenarios (item worn in its best slot vs in the loop,
+      every attribute compared) — they fail with the old rule.
+- [x] Right-click equip swapping with a mirror: not reachable — Curios swaps with the first
+      extractable slot and base slots always precede granted ones. SelfTest `rightclick-swap` forces
+      the swap path (every slot full) as a guard.
 - [ ] Verify each: Apotheosis affix abilities, Relics abilities, Artifacts abilities all fire from
       a loop-held item
 - [x] Contained cosmetics render on the body (the mirrors are really equipped). Per-item + master

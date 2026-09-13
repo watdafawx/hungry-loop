@@ -17,6 +17,7 @@ $files = @{
     'relics-1.21.1-0.12.8.jar'            = 'https://cdn.modrinth.com/data/OCJRPujW/versions/WKEe9sPL/relics-1.21.1-0.12.8.jar'
     'artifacts-neoforge-13.2.5.jar'       = 'https://cdn.modrinth.com/data/P0Mu4wcQ/versions/lMfuK0o7/artifacts-neoforge-13.2.5.jar'
     'OctoLib-NEOFORGE-0.6.2+1.21.jar'     = 'https://cdn.modrinth.com/data/RH2KUdKJ/versions/yVCCi6TK/OctoLib-NEOFORGE-0.6.2%2B1.21.jar'
+    'ImmersiveUI-NEOFORGE-0.3.3+1.21.1.jar' = 'https://cdn.modrinth.com/data/9wv7LuMc/versions/wtmSnIFo/ImmersiveUI-NEOFORGE-0.3.3%2B1.21.1.jar'
 }
 
 foreach ($name in $files.Keys) {
