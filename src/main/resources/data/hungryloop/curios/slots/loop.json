@@ -4,7 +4,8 @@
   "render_toggle": false,
   "drop_rule": "DEFAULT",
   "size": 0,
-  "order": 210,
+  "order": 10,
   "operation": "SET",
-  "icon": "hungryloop:slot/loop"
+  "icon": "hungryloop:slot/loop",
+  "validators": ["hungryloop:loop_only"]
 }

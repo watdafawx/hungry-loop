@@ -122,6 +122,12 @@ So the loop **grants real Curios slots** and mirrors its contents into them.
       `integration/apotheosis/ApothSlots` now wins when Apotheosis is loaded; `loop` is never a
       candidate. Verified by SelfTest's parity scenarios (item worn in its best slot vs in the loop,
       every attribute compared) — they fail with the old rule.
+- [x] **Loop slots come first in the Curios panel** (`loop.json` order 10, below `curio`'s 20), and
+      only loops fit them. The slot's `hungryloop:loop_only` validator keeps `getItemStackSlots`
+      honest, but Curios' `isStackValid` hardcodes "valid in `curio` ⇒ valid in every type", so
+      wildcards could still be clicked or right-click-equipped in — and ordered first, right-click
+      picks the loop slot before any real one. `LoopSlotProvider` denies non-loops for the loop type
+      in `CurioCanEquipEvent`, which every equip path consults. SelfTest `order` group covers all three.
 - [x] Right-click equip swapping with a mirror: not reachable — Curios swaps with the first
       extractable slot and base slots always precede granted ones. SelfTest `rightclick-swap` forces
       the swap path (every slot full) as a guard.

@@ -33,10 +33,11 @@ neoForge {
         // Unattended regression suite (client/SelfTest): recreates a flat scratch world
         // "hungryloop-selftest", runs every scenario, diffs client vs server, screenshots each step,
         // writes run/hungryloop-selftest.txt and quits. Never touches a real save.
+        // Run a subset with -Pscenarios=idle,moves (groups listed in SelfTest#wants); default = all.
         selftest {
             client()
             gameDirectory = file('run')
-            systemProperty 'hungryloop.selftest', 'auto'
+            systemProperty 'hungryloop.selftest', (project.findProperty('scenarios') ?: 'auto').toString()
         }
         server {
             server()

@@ -210,18 +210,23 @@ public final class SelfTest {
                 return true;
             }
             List<BooleanSupplier> suite = new ArrayList<>();
-            suite.addAll(idleChurnScenario(items, true));
-            suite.addAll(idleChurnScenario(items, false));
-            suite.addAll(equipWhileOpenScenario(items));
-            suite.addAll(provisionedMoves(items));
-            suite.addAll(nestedLoopScenario(items));
-            suite.addAll(twoLoopsScenario(items));
-            suite.addAll(overflowScenario(items));
-            List<Item> parityItems = new ArrayList<>(items);
-            parityItems.addAll(onServer(SelfTest::multiTypeItems));
-            for (Item item : parityItems) suite.addAll(parityScenario(item));
+            if (wants("order")) suite.addAll(loopSlotOrderScenario(items));
+            if (wants("idle")) {
+                suite.addAll(idleChurnScenario(items, true));
+                suite.addAll(idleChurnScenario(items, false));
+            }
+            if (wants("open")) suite.addAll(equipWhileOpenScenario(items));
+            if (wants("moves")) suite.addAll(provisionedMoves(items));
+            if (wants("nested")) suite.addAll(nestedLoopScenario(items));
+            if (wants("twoloops")) suite.addAll(twoLoopsScenario(items));
+            if (wants("overflow")) suite.addAll(overflowScenario(items));
+            if (wants("parity")) {
+                List<Item> parityItems = new ArrayList<>(items);
+                parityItems.addAll(onServer(SelfTest::multiTypeItems));
+                for (Item item : parityItems) suite.addAll(parityScenario(item));
+            }
             List<Item> wildcards = onServer(SelfTest::multiTypeItems);
-            if (!wildcards.isEmpty()) suite.addAll(rightClickSwapScenario(wildcards.get(0), items.get(1), items.get(2)));
+            if (wants("swap") && !wildcards.isEmpty()) suite.addAll(rightClickSwapScenario(wildcards.get(0), items.get(1), items.get(2)));
             suite.add(() -> {
                 finish();
                 return true;
@@ -229,6 +234,18 @@ public final class SelfTest {
             queueFront(suite);
             return true;
         });
+    }
+
+    /**
+     * Scenario filter: {@code -Dhungryloop.selftest=auto} (or {@code all}) runs everything; otherwise
+     * a comma list of group names runs just those - order, idle, open, moves, nested, twoloops,
+     * overflow, parity, swap. From gradle: {@code runSelftest -Pscenarios=idle,moves}.
+     */
+    private static boolean wants(String group) {
+        String value = System.getProperty("hungryloop.selftest", "auto").trim();
+        if (value.equals("auto") || value.equals("all")) return true;
+        for (String token : value.split(",")) if (token.trim().equals(group)) return true;
+        return false;
     }
 
     private static void reset(String mode) {
@@ -424,6 +441,109 @@ public final class SelfTest {
                     fail(label + "-render-toggle-live", "no worn relic slot on screen to toggle");
                 }
             }
+            return true;
+        });
+        return seq;
+    }
+
+    /**
+     * The loop's slot type comes first in the Curios panel, and only loops can go in it: a wildcard
+     * item (valid in every type) must not land there by right-click equip - which walks types in
+     * panel order - nor by clicking it into the slot.
+     */
+    private static List<BooleanSupplier> loopSlotOrderScenario(List<Item> items) {
+        List<BooleanSupplier> seq = new ArrayList<>();
+        seq.add(provision("loop-slot-order", List.of(loopOf(4, items.get(0)))));
+        openCuriosInto(seq);
+        waitTicks(seq, SETTLE);
+        seq.add(() -> {
+            List<String> fails = new ArrayList<>();
+            CurioSlot first = null;
+            for (Slot slot : Minecraft.getInstance().player.containerMenu.slots) {
+                if (slot instanceof CurioSlot cs && cs.x != LoopSlotMirror.PARKED
+                        && (first == null || cs.y < first.y || (cs.y == first.y && cs.x < first.x))) {
+                    first = cs;
+                }
+            }
+            if (first == null || !first.getIdentifier().equals(LOOP)) {
+                fails.add("top-left curio slot is " + (first == null ? "none" : first.getIdentifier()) + ", expected loop");
+            }
+            record("loop-slots-first", fails);
+            screenshot("loop-slots-first");
+            return true;
+        });
+
+        List<Item> wildcards = onServer(SelfTest::multiTypeItems);
+        if (wildcards.isEmpty()) {
+            seq.add(() -> {
+                log("SKIP loop-slot-validator (no wildcard curio items installed)");
+                return true;
+            });
+            return seq;
+        }
+        Item wildcard = wildcards.get(0);
+
+        // right-click with both loop slots empty
+        seq.add(provision("loop-slot-validator (right-click)", List.of(), false));
+        waitTicks(seq, SETTLE);
+        seq.add(() -> {
+            onServer(p -> {
+                p.getInventory().selected = 0;
+                p.getInventory().setItem(0, new ItemStack(wildcard));
+                return null;
+            });
+            Minecraft mc = Minecraft.getInstance();
+            mc.player.closeContainer();
+            mc.player.getInventory().selected = 0;
+            mc.getConnection().send(new ServerboundSetCarriedItemPacket(0));
+            return true;
+        });
+        waitTicks(seq, 10);
+        seq.add(() -> {
+            Minecraft mc = Minecraft.getInstance();
+            mc.gameMode.useItem(mc.player, InteractionHand.MAIN_HAND);
+            return true;
+        });
+        waitTicks(seq, SETTLE);
+        seq.add(() -> {
+            String where = onServer(p -> wornTypeOf(p, wildcard, false));
+            List<String> fails = new ArrayList<>();
+            if (where == null) fails.add("right-click didn't equip " + wildcard + " anywhere (test didn't exercise the path)");
+            else if (where.equals(LOOP)) fails.add("right-click equipped " + wildcard + " into the loop slot");
+            else log("    right-click equipped the wildcard into " + where);
+            record("wildcard-rightclick-not-loop", fails);
+            return true;
+        });
+
+        // click it into an empty loop slot
+        seq.add(provision("loop-slot-validator (click)", List.of()));
+        seq.add(() -> {
+            onServer(p -> {
+                p.getInventory().setItem(9, new ItemStack(wildcard));
+                return null;
+            });
+            return true;
+        });
+        openCuriosInto(seq);
+        waitTicks(seq, SETTLE);
+        seq.add(() -> {
+            click(playerSlotHolding(wildcard));
+            return true;
+        });
+        waitTicks(seq, 5);
+        seq.add(() -> {
+            click(curioSlot(LOOP, 0));
+            return true;
+        });
+        waitTicks(seq, SETTLE);
+        seq.add(() -> {
+            List<String> fails = new ArrayList<>();
+            String inLoop = onServer(p -> CuriosApi.getCuriosInventory(p).flatMap(h -> h.getStacksHandler(LOOP))
+                    .map(sh -> key(sh.getStacks().getStackInSlot(0))).orElse("-"));
+            if (!inLoop.equals("-")) fails.add("clicking " + wildcard + " into loop:0 was accepted (loop:0 holds " + inLoop + ")");
+            fails.addAll(ghostDiff());
+            record("wildcard-click-not-loop", fails);
+            if (!Minecraft.getInstance().player.containerMenu.getCarried().isEmpty()) click(firstEmptyPlayerSlot());
             return true;
         });
         return seq;

@@ -13,7 +13,9 @@ import net.minecraft.world.item.ItemStack;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.common.util.TriState;
 import top.theillusivec4.curios.api.CuriosApi;
+import top.theillusivec4.curios.api.event.CurioCanEquipEvent;
 
 import java.util.List;
 
@@ -42,6 +44,22 @@ public final class LoopSlotProvider {
             result.set(ModDataComponents.LOOP_CONTENTS.get(),
                     new LoopContents(Config.startSlots(false), 0, 0, false, 0, List.of(),
                             LoopContents.ALL_RENDER, true));
+        }
+    }
+
+    /**
+     * Only loops go in the loop's slot type. The slot JSON's {@code hungryloop:loop_only} validator
+     * isn't enough on its own: Curios' {@code isStackValid} treats anything valid in the generic
+     * {@code curio} type as valid in <em>every</em> type, regardless of validators, so wildcard items
+     * could be clicked or right-click-equipped into it - and with the loop type ordered first,
+     * right-click would pick it before any real slot. This event is where every equip path
+     * (click, right-click, other mods' quick-equip) asks.
+     */
+    @SubscribeEvent
+    static void onCanEquip(CurioCanEquipEvent event) {
+        if (event.getSlotContext().identifier().equals(HungryLoopCurio.LOOP_SLOT)
+                && !(event.getStack().getItem() instanceof HungryLoopItem)) {
+            event.setEquipResult(TriState.FALSE);
         }
     }
 

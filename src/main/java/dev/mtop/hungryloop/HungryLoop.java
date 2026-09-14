@@ -3,6 +3,7 @@ package dev.mtop.hungryloop;
 import dev.mtop.hungryloop.command.HungryLoopCommands;
 import dev.mtop.hungryloop.component.ModDataComponents;
 import dev.mtop.hungryloop.curio.HungryLoopCurio;
+import dev.mtop.hungryloop.item.HungryLoopItem;
 import dev.mtop.hungryloop.curio.LoopSlotProvider;
 import dev.mtop.hungryloop.loot.ShinyLoopModifier;
 import dev.mtop.hungryloop.menu.ModMenus;
@@ -57,8 +58,15 @@ public class HungryLoop {
 
     private void commonSetup(FMLCommonSetupEvent event) {
         // registerCurio touches the frozen item registry - safe on the setup thread.
-        event.enqueueWork(() ->
-                CuriosApi.registerCurio(ModItems.HUNGRY_LOOP.get(), HungryLoopCurio.INSTANCE));
+        event.enqueueWork(() -> {
+            CuriosApi.registerCurio(ModItems.HUNGRY_LOOP.get(), HungryLoopCurio.INSTANCE);
+            // The loop slot type's validator (data/hungryloop/curios/slots/loop.json). Curios' default
+            // "curios:tag" also admits anything tagged curios:curio - wildcard items valid in every
+            // type - so without this they'd fit the loop slot, and with the loop type ordered first,
+            // right-click equip would put them there before any real slot.
+            CuriosApi.registerCurioPredicate(HungryLoopCurio.LOOP_ONLY_VALIDATOR,
+                    slotResult -> slotResult.stack().getItem() instanceof HungryLoopItem);
+        });
     }
 
     private void onConfigLoad(ModConfigEvent event) {

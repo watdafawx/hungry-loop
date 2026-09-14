@@ -44,6 +44,10 @@ public final class HungryLoopCurio implements ICurioItem {
     /** The loop's dedicated Curios slot type; its size is driven by {@code Config.loopSlots()}. */
     public static final String LOOP_SLOT = "loop";
 
+    /** Curios slot validator admitting only loops; referenced by the loop slot type's JSON. */
+    public static final ResourceLocation LOOP_ONLY_VALIDATOR =
+            ResourceLocation.fromNamespaceAndPath("hungryloop", "loop_only");
+
     @Override
     public boolean canEquip(SlotContext slotContext, ItemStack stack) {
         return slotContext.identifier().equals(LOOP_SLOT);
