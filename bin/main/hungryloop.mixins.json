@@ -1,0 +1,16 @@
+{
+  "required": true,
+  "minVersion": "0.8.5",
+  "package": "dev.mtop.hungryloop.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "CurioSlotMixin",
+    "CuriosPanelLayoutMixin"
+  ],
+  "client": [
+    "CuriosModifiersSyncMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
