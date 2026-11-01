@@ -75,7 +75,7 @@ without that mod (`NoClassDefFoundError`).
 
 Rules:
 
-- **All Apotheosis / Relics / Artifacts references live under `dev.mtop.hungryloop.integration.`**
+- **All Apotheosis / Relics / Artifacts references live under `dev.watdafawx.hungryloop.integration.`**
   and nowhere else.
 - **No `@EventBusSubscriber` on any integration class.** Register their handlers by hand from
   `HungryLoop`'s constructor, each behind `ModList.get().isLoaded("apotheosis" | "relics" |

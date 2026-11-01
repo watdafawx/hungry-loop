@@ -31,7 +31,7 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started · `[?]` needs a de
 
 - [x] `LoopContents` data component on the ItemStack — `baseSlots`, `bonusSlots`, `shiny`,
       `storedXp`, `List<ItemStack> items`; Codec + StreamCodec; registered `DataComponentType`
-      ([component/](src/main/java/dev/mtop/hungryloop/component/))
+      ([component/](src/main/java/dev/watdafawx/hungryloop/component/))
 - [x] `toSlotList()` / `withItems()` view helpers (fixed-size padded list, trailing-empty trim)
 - [x] Per-sub-slot **slot type resolution** — `ContentForwarding.resolveSlot()` via
       `CuriosApi.getItemStackSlots`, preferring a specific type over generic `curio`
