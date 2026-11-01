@@ -10,6 +10,7 @@ config = "hungryloop.mixins.json"
 modId = "${mod_id}"
 version = "${mod_version}"
 displayName = "${mod_name}"
+logoFile = "hungryloop.png"
 authors = "${mod_authors}"
 description = '''
 The Hungry Loop is a single curio that holds other curios. Whatever you slot into it - a ring, an

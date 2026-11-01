@@ -7,7 +7,12 @@ version = mod_version
 group = mod_group_id
 
 base {
-    archivesName = "${mod_id}-neoforge-${minecraft_version}"
+    archivesName = mod_id
+}
+
+// Hopper release naming: <modid>-<version>+neoforge-<mc>.jar. project.version stays plain semver.
+tasks.withType(Jar).configureEach {
+    archiveVersion = "${project.version}+neoforge-${minecraft_version}"
 }
 
 java {
