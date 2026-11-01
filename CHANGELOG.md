@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.4
+
+- Author is now watdafawx (was mtop); Java packages moved from dev.mtop to dev.watdafawx. No gameplay changes.
+
 ## 0.6.3
 
 - New mod icon based on the Hungry Loop item.
