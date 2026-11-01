@@ -21,3 +21,6 @@ rc6.log
 rc7.log
 rc8.log
 rc9.log
+
+bin/
+.eclipse/
