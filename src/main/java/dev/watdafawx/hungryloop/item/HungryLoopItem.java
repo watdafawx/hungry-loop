@@ -86,7 +86,7 @@ public class HungryLoopItem extends Item {
     @Override
     public Optional<TooltipComponent> getTooltipImage(ItemStack stack) {
         List<ItemStack> items = contentsOf(stack).items().stream().filter(s -> !s.isEmpty()).toList();
-        return items.isEmpty() ? Optional.empty() : Optional.of(new LoopContentsTooltip(items));
+        return items.isEmpty() ? Optional.empty() : Optional.of(new LoopContentsTooltip(items, contentsOf(stack).shiny()));
     }
 
     @Override

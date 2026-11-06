@@ -313,6 +313,8 @@ So the loop **grants real Curios slots** and mirrors its contents into them.
 
 ## Ideas for later
 
+- [x] Animated loop screen frame (`client.LoopFrame`, PoE-unique inspired) + ring layout around the
+      wearer; fits every GUI scale (SelfTest `scales`, `look`). 0.8.0.
 - [ ] Animated item sprite that sells the "hungry" idea (the loop's maw chewing / pulsing).
       Draft static 32×32 + shiny variant in `art/drafts/` (not wired in yet).
 - [ ] Physical 3D model rendered on the player in third person (Curios/Accessories render layer),

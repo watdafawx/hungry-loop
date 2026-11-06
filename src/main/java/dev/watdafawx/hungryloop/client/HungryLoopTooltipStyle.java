@@ -19,23 +19,24 @@ public final class HungryLoopTooltipStyle {
     static void onColor(RenderTooltipEvent.Color event) {
         if (!(event.getItemStack().getItem() instanceof HungryLoopItem loop)) return;
 
-        boolean shiny = HungryLoopItem.contentsOf(event.getItemStack()).shiny();
+        LoopFrame.Palette p = LoopFrame.Palette.of(HungryLoopItem.contentsOf(event.getItemStack()).shiny());
         float t = (Util.getMillis() % 3000L) / 3000f * Mth.TWO_PI;
 
-        event.setBorderStart(shimmer(t, shiny));
-        event.setBorderEnd(shimmer(t + Mth.PI, shiny));
-        event.setBackgroundStart(0xF00E0A14);
-        event.setBackgroundEnd(0xF0130C1C);
+        // Same frame as the loop screen: its body colours, and a border that breathes between the
+        // frame's copper and its ember glow (top and bottom out of phase, so it seems to travel).
+        event.setBorderStart(breathe(p, t));
+        event.setBorderEnd(breathe(p, t + Mth.PI));
+        event.setBackgroundStart(LoopFrame.withAlpha(p.bodyTop(), 0xF0));
+        event.setBackgroundEnd(LoopFrame.withAlpha(p.bodyBottom(), 0xF0));
     }
 
-    private static int shimmer(float phase, boolean shiny) {
+    private static int breathe(LoopFrame.Palette p, float phase) {
         float f = (Mth.sin(phase) + 1f) / 2f; // 0..1
-        if (shiny) {
-            int r = lerp(0x33, 0x8F, f), g = lerp(0x8C, 0xE6, f), b = lerp(0xA6, 0xFF, f);
-            return 0xFF000000 | (r << 16) | (g << 8) | b;
-        }
-        int r = lerp(0x6E, 0xE0, f), g = lerp(0x3F, 0x94, f), b = lerp(0x22, 0x50, f);
-        return 0xFF000000 | (r << 16) | (g << 8) | b;
+        int a = p.edge(), b = p.glow();
+        int r = lerp(a >> 16 & 0xFF, b >> 16 & 0xFF, f);
+        int g = lerp(a >> 8 & 0xFF, b >> 8 & 0xFF, f);
+        int bl = lerp(a & 0xFF, b & 0xFF, f);
+        return 0xFF000000 | (r << 16) | (g << 8) | bl;
     }
 
     private static int lerp(int a, int b, float f) {

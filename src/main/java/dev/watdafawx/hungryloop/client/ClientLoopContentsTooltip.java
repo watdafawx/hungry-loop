@@ -50,7 +50,10 @@ public class ClientLoopContentsTooltip implements ClientTooltipComponent {
     private final List<int[]> cardBoxes = new ArrayList<>();
     private int width;
 
+    private LoopFrame.Palette palette = LoopFrame.Palette.COPPER;
+
     public ClientLoopContentsTooltip(LoopContentsTooltip data) {
+        this.palette = LoopFrame.Palette.of(data.shiny());
         Minecraft mc = Minecraft.getInstance();
         Font font = mc.font;
         Item.TooltipContext ctx = Item.TooltipContext.of(mc.level);
@@ -178,6 +181,8 @@ public class ClientLoopContentsTooltip implements ClientTooltipComponent {
         for (int i = 0; i < cardBoxes.size(); i++) {
             int[] box = cardBoxes.get(i);
             graphics.fill(x - 2, y + box[0], x + width + 2, y + box[0] + box[1], i % 2 == 0 ? TINT_A : TINT_B);
+            // the loop screen's fading rule between cards
+            if (i > 0) LoopFrame.separator(graphics, x - 2, y + box[0], width + 4, palette);
         }
 
         int cy = y;

@@ -260,6 +260,11 @@ public final class SelfTest {
             }
             if (wants("moves")) suite.addAll(provisionedMoves(items));
             suite.addAll(abilityScenarios());
+            if (wants("scales")) suite.addAll(scalesScenario(items));
+            if (wants("look")) {
+                suite.addAll(lookScenario("look-copper", items, false));
+                suite.addAll(lookScenario("look-shiny", items, true));
+            }
             if (wants("overlay")) {
                 suite.addAll(overlayScenario("overlay-inventory", SelfTest::openInventoryInto, s -> s instanceof InventoryScreen));
                 suite.addAll(overlayScenario("overlay-curios", SelfTest::openCuriosInto, s -> s instanceof CuriosScreen));
@@ -448,6 +453,105 @@ public final class SelfTest {
                 return true;
             });
             queueFront(perPage);
+            return true;
+        });
+        return seq;
+    }
+
+    // --- scales: the loop screen must fit and stay inside its panel at every GUI scale ----------
+
+    /**
+     * Opens a 20-slot shiny loop (the widest ring) at each GUI scale for two window sizes - the
+     * minimum Minecraft allows (854x480) and 1080p - and requires the panel inside the screen, and
+     * every ring slot, eye, the feed button and the inventory inside the panel. Screenshots each one,
+     * since "readable" is for eyes.
+     */
+    private static List<BooleanSupplier> scalesScenario(List<Item> items) {
+        List<BooleanSupplier> seq = new ArrayList<>();
+        ItemStack loop = new ItemStack(ModItems.HUNGRY_LOOP.get());
+        loop.set(ModDataComponents.LOOP_CONTENTS.get(), new LoopContents(7, 0, 0, true, 0,
+                items.subList(0, 5).stream().map(ItemStack::new).toList(), LoopContents.ALL_RENDER, true));
+        seq.add(provision("scales", List.of(loop)));
+        waitTicks(seq, SETTLE);
+        int[][] windows = {{854, 480}, {1920, 1080}};
+        for (int[] win : windows) {
+            for (int scale = 1; scale <= 4; scale++) {
+                int sc = scale;
+                String name = "scale-" + win[0] + "x" + win[1] + "-gui" + scale;
+                seq.add(() -> {
+                    Minecraft mc = Minecraft.getInstance();
+                    org.lwjgl.glfw.GLFW.glfwSetWindowSize(mc.getWindow().getWindow(), win[0], win[1]);
+                    mc.options.guiScale().set(sc);
+                    mc.resizeDisplay();
+                    PacketDistributor.sendToServer(new OpenLoopPayload());
+                    return true;
+                });
+                seq.add(waitUntil(() -> Minecraft.getInstance().screen instanceof HungryLoopScreen, 100, "loop screen never opened"));
+                waitTicks(seq, 10);
+                seq.add(() -> {
+                    Minecraft mc = Minecraft.getInstance();
+                    mc.resizeDisplay();
+                    List<String> fails = new ArrayList<>();
+                    if (mc.screen instanceof HungryLoopScreen screen) {
+                        int gw = mc.getWindow().getGuiScaledWidth(), gh = mc.getWindow().getGuiScaledHeight();
+                        int effective = (int) mc.getWindow().getGuiScale();
+                        log("    " + name + ": window " + mc.getWindow().getWidth() + "x" + mc.getWindow().getHeight()
+                                + ", effective gui scale " + effective + ", gui " + gw + "x" + gh);
+                        fails.addAll(screen.layoutProblems(gw, gh));
+                    } else {
+                        fails.add("loop screen not open");
+                    }
+                    record(name, fails);
+                    return true;
+                });
+                waitTicks(seq, 4); // let the resized frame render before grabbing it
+                seq.add(() -> {
+                    screenshot(name);
+                    return true;
+                });
+                waitTicks(seq, 4);
+                seq.add(() -> {
+                    Minecraft.getInstance().player.closeContainer();
+                    return true;
+                });
+                waitTicks(seq, 5);
+            }
+        }
+        seq.add(() -> {
+            Minecraft mc = Minecraft.getInstance();
+            org.lwjgl.glfw.GLFW.glfwSetWindowSize(mc.getWindow().getWindow(), 854, 480);
+            mc.options.guiScale().set(0);
+            mc.resizeDisplay();
+            return true;
+        });
+        return seq;
+    }
+
+    // --- look: screenshots of the loop screen for eyeballing the frame ----------------------------
+
+    private static List<BooleanSupplier> lookScenario(String name, List<Item> items, boolean shiny) {
+        List<BooleanSupplier> seq = new ArrayList<>();
+        ItemStack loop = new ItemStack(ModItems.HUNGRY_LOOP.get());
+        List<ItemStack> contents = items.subList(0, 5).stream().map(ItemStack::new).toList();
+        loop.set(ModDataComponents.LOOP_CONTENTS.get(), new LoopContents(shiny ? 7 : 5, 0, 0, shiny, 0,
+                contents, LoopContents.ALL_RENDER, true));
+        seq.add(provision(name, List.of(loop)));
+        waitTicks(seq, SETTLE);
+        seq.add(() -> {
+            PacketDistributor.sendToServer(new OpenLoopPayload());
+            return true;
+        });
+        seq.add(waitUntil(() -> Minecraft.getInstance().screen instanceof HungryLoopScreen, 100, "loop screen never opened"));
+        waitTicks(seq, 20);
+        seq.add(() -> {
+            screenshot(name + "-a");
+            return true;
+        });
+        waitTicks(seq, 10);
+        seq.add(() -> {
+            screenshot(name + "-b");
+            record(name, List.of());
+            Minecraft.getInstance().player.closeContainer();
             return true;
         });
         return seq;

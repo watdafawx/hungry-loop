@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.0
+
+- New loop screen: an animated frame inspired by Path of Exile's unique items (copper title plate with turning end caps, a breathing ember border, drifting embers, the flavour line), in teal for shiny loops.
+- Contained items now sit on a ring around your player model instead of a snake; the ring widens as the loop grows.
+- The screen is wide and short, so it fits every GUI scale (it used to cut off the hotbar on smaller screens).
+- The loop's tooltip uses the same colours and separators.
+
 ## 0.7.0
 
 - Progress made on items while they are in a worn loop (Relics XP, levels and research, durability, charges) is now kept when the loop comes off. Before, it was lost on unequip.

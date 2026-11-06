@@ -9,5 +9,6 @@ import java.util.List;
  * Carries the loop's contents to the client tooltip renderer ({@code client.ClientLoopContentsTooltip}),
  * which draws each item's icon + its own tooltip lines, paginated.
  */
-public record LoopContentsTooltip(List<ItemStack> contents) implements TooltipComponent {
+/** {@code shiny} picks the frame palette (copper or aqua) the client draws the cards in. */
+public record LoopContentsTooltip(List<ItemStack> contents, boolean shiny) implements TooltipComponent {
 }

@@ -35,6 +35,10 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
     private static final int XP_FILL_BOTTOM = 0xFF4E9C25;
     private static final int SHINY = 0xFF6FE0FF;
 
+    /** Master cosmetics eye, inside the header plate right of the left end cap. */
+    private static final int EYE_X = 22;
+    private static final int EYE_Y = 8;
+
     private int xpBarY;
     private int feedX, feedY, feedW, feedH;
 
@@ -42,19 +46,85 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
         super(menu, inv, title);
         this.imageWidth = HungryLoopMenu.PANEL_WIDTH;
         this.imageHeight = HungryLoopMenu.PANEL_HEIGHT;
-        this.inventoryLabelY = HungryLoopMenu.PLAYER_INV_Y - 12;
+        this.inventoryLabelX = HungryLoopMenu.PLAYER_INV_X;
+        this.inventoryLabelY = HungryLoopMenu.PLAYER_INV_Y - 11;
     }
+
+    /** Right column, beside the ring: XP bar, feed button, flavour. */
+    private static final int COL_X = HungryLoopMenu.PLAYER_INV_X;
+    private static final int COL_W = 9 * 18;
 
     @Override
     protected void init() {
         super.init();
-        this.titleLabelX = 20;
-        this.titleLabelY = 7;
-        this.xpBarY = HungryLoopMenu.PLAYER_INV_Y - 34;
+        this.xpBarY = 30;
         this.feedW = 72;
         this.feedH = 16;
-        this.feedX = leftPos + (imageWidth - feedW) / 2;
-        this.feedY = topPos + xpBarY + 11;
+        this.feedX = leftPos + COL_X + (COL_W - feedW) / 2;
+        this.feedY = topPos + 46;
+        layoutRing();
+    }
+
+    /**
+     * Everything that must fit, checked by {@code SelfTest}'s scales scenario: the panel inside the
+     * GUI, and the ring slots (with their eye and cost label), feed button and inventory inside the
+     * panel. Returns what doesn't.
+     */
+    public List<String> layoutProblems(int guiWidth, int guiHeight) {
+        List<String> out = new java.util.ArrayList<>();
+        if (leftPos < 0 || topPos < 0 || leftPos + imageWidth > guiWidth || topPos + imageHeight > guiHeight) {
+            out.add("panel " + imageWidth + "x" + imageHeight + " at " + leftPos + "," + topPos
+                    + " doesn't fit gui " + guiWidth + "x" + guiHeight);
+        }
+        int n = ringCount();
+        for (int i = 0; i < n; i++) {
+            int sx = ringX(i), sy = ringY(i);
+            // slot, its eye (x+10..x+17, y-3..y+4) and its cost label (about 15px outward)
+            if (sx - 16 < 0 || sy - 16 < LoopFrame.HEADER_H + 4 || sx + 32 > COL_X - 2 || sy + 32 > imageHeight) {
+                out.add("ring slot " + i + " (with eye/cost label) at " + sx + "," + sy + " leaves the ring area");
+            }
+        }
+        if (feedX + feedW > leftPos + imageWidth || feedY + feedH > topPos + imageHeight) out.add("feed button outside panel");
+        for (Slot slot : menu.slots) {
+            if (slot.container != menu.contentsContainer() && (slot.x + 18 > imageWidth || slot.y + 18 > imageHeight)) {
+                out.add("inventory slot at " + slot.x + "," + slot.y + " outside panel");
+            }
+        }
+        int flavourLines = font.split(Component.translatable("hungryloop.flavour"), COL_W - 4).size();
+        if (flavourLines > 2) out.add("flavour text needs " + flavourLines + " lines, room for 2");
+        return out;
+    }
+
+    /** How many slots the ring shows: the capacity, or the contents if they overrun it. */
+    private int ringCount() {
+        LoopContents data = menu.loopData();
+        return Math.min(HungryLoopMenu.MAX_LOOP_SLOTS, Math.max(Math.max(1, data.slotCap()), data.items().size()));
+    }
+
+    private int ringX(int i) {
+        return HungryLoopMenu.ringSlotX(i, ringCount());
+    }
+
+    private int ringY(int i) {
+        return HungryLoopMenu.ringSlotY(i, ringCount());
+    }
+
+    /**
+     * Put the loop's menu slots on the ring for the current capacity. Presentation only (positions,
+     * never the slot list), so it can run every frame and follows the cap live when it grows.
+     */
+    private void layoutRing() {
+        int n = ringCount();
+        for (int i = 0; i < HungryLoopMenu.MAX_LOOP_SLOTS && i < menu.slots.size(); i++) {
+            Slot slot = menu.slots.get(i);
+            if (i < n) {
+                slot.x = HungryLoopMenu.ringSlotX(i, n);
+                slot.y = HungryLoopMenu.ringSlotY(i, n);
+            } else {
+                slot.x = -10000;
+                slot.y = -10000;
+            }
+        }
     }
 
     @Override
@@ -71,49 +141,46 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
         long time = net.minecraft.Util.getMillis();
         float breathe = (net.minecraft.util.Mth.sin(time / 1400f) + 1f) / 2f; // 0..1
 
-        g.fillGradient(x, y, x + imageWidth, y + imageHeight, PANEL_TOP, PANEL_BOTTOM);
-        drawStarfield(g, x, y, time);
-        bevel(g, x, y, imageWidth, imageHeight, accent, accentLight, accentDark);
-        drawBorderSpark(g, x, y, time, accentLight);
-        g.fill(x + 6, y + 18, x + imageWidth - 6, y + 19, accentDark);
+        LoopFrame.Palette frame = LoopFrame.Palette.of(data.shiny());
+        LoopFrame.body(g, x, y, imageWidth, imageHeight, frame);
+        LoopFrame.header(g, font, x, y, imageWidth, title, frame);
 
-        String count = data.totalSlots() + " / " + cap;
-        g.drawString(font, count, x + imageWidth - 8 - font.width(count), y + 7,
-                data.shiny() ? SHINY : 0xFFE7C9A6, false);
+        // slot count + master cosmetics toggle sit inside the plate, between the end caps
+        String count = data.totalSlots() + "/" + cap;
+        g.drawString(font, count, x + imageWidth - 22 - font.width(count), y + 7, frame.title(), false);
+        drawEye(g, EYE_X + x, EYE_Y + y, data.selfRenders(), inEye(mouseX, mouseY, x + EYE_X, y + EYE_Y));
 
-        // master cosmetics toggle
-        drawEye(g, x + 6, y + 5, data.selfRenders(), inEye(mouseX, mouseY, x + 6, y + 5));
+        layoutRing();
+        int n = ringCount();
 
-        // constellation lines, faintly breathing
-        int lineReal = withAlpha(LINE_REAL, 0x40 + Math.round(breathe * 0x40));
-        for (int i = 0; i + 1 < cap; i++) {
-            int[] a = HungryLoopMenu.loopSlotCenter(i);
-            int[] b = HungryLoopMenu.loopSlotCenter(i + 1);
-            line(g, x + a[0], y + a[1], x + b[0], y + b[1], i + 1 < total ? lineReal : LINE_FUTURE);
+        // the ring itself: a closed path through every slot, the unlocked arc brighter
+        int lineReal = withAlpha(frame.edge(), 0x70 + Math.round(breathe * 0x50));
+        int lineFuture = withAlpha(frame.edge(), 0x28);
+        for (int i = 0; i < n; i++) {
+            int j = (i + 1) % n;
+            boolean real = j == 0 ? total >= n : j < total;
+            line(g, x + ringX(i) + 8, y + ringY(i) + 8, x + ringX(j) + 8, y + ringY(j) + 8, real ? lineReal : lineFuture);
         }
-        drawConstellationPulse(g, x, y, time, Math.max(2, total), data.shiny() ? SHINY : 0xFFFFE7C0);
+        drawRingPulse(g, x, y, time, Math.max(2, total), frame.glow());
+
+        // the wearer, standing in the loop
+        drawWearer(g, x, y, mouseX, mouseY);
 
         int hovered = hoveredLockedSlot(mouseX, mouseY);
 
-        // Contents can overrun the capacity (a lowered cap, or loot/commands writing past it). Those
-        // items are still equipped through Curios, so draw a real well for them rather than a locked
-        // "+" ring with an item sitting on top - the menu keeps them take-only.
-        int drawCount = Math.max(cap, data.items().size());
-
-        for (int i = 0; i < drawCount; i++) {
-            int sx = x + HungryLoopMenu.loopSlotX(i);
-            int sy = y + HungryLoopMenu.loopSlotY(i);
+        for (int i = 0; i < n; i++) {
+            int sx = x + ringX(i);
+            int sy = y + ringY(i);
             boolean overflow = i >= total && i < data.items().size() && !data.items().get(i).isEmpty();
             if (i < total || overflow) {
-                well(g, sx, sy, WELL, WELL_EDGE);
+                well(g, sx, sy, WELL, withAlpha(frame.edge(), 0x90));
                 if (i < data.items().size() && !data.items().get(i).isEmpty()) {
                     drawEye(g, sx + 10, sy - 3, data.rendersItem(i), inEye(mouseX, mouseY, sx + 10, sy - 3));
                 }
             } else {
                 boolean isHover = i == hovered;
                 boolean isNext = i == total;
-                int ring = isHover ? 0xFFE7C9A6 : isNext ? 0xFF7A6E4E : 0xFF3C3450;
-                // dashed ring
+                int ring = isHover ? 0xFFE7C9A6 : isNext ? withAlpha(frame.edgeLight(), 0xD0) : 0xFF3C3028;
                 g.fill(sx + 2, sy, sx + 14, sy + 1, ring);
                 g.fill(sx + 2, sy + 15, sx + 14, sy + 16, ring);
                 g.fill(sx, sy + 2, sx + 1, sy + 14, ring);
@@ -123,25 +190,37 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
                     int cost = data.costToReach(i + 1);
                     boolean afford = menu.playerXpLevels() >= cost;
                     String c = String.valueOf(cost);
-                    g.drawString(font, c, sx + 8 - font.width(c) / 2, sy + 17,
-                            afford ? 0xFF7FDB3F : 0xFFD05A5A, false);
+                    // cost label just outside the ring, away from the wearer
+                    double ang = Math.atan2(ringY(i) + 8 - HungryLoopMenu.RING_CY, ringX(i) + 8 - HungryLoopMenu.RING_CX);
+                    int lx = sx + 8 + (int) Math.round(Math.cos(ang) * 15);
+                    int ly = sy + 4 + (int) Math.round(Math.sin(ang) * 15);
+                    g.drawString(font, c, lx - font.width(c) / 2, ly, afford ? 0xFF7FDB3F : 0xFFD05A5A, false);
                 }
             }
         }
 
         // XP bar
-        int barX = x + 8;
-        int barW = imageWidth - 16;
-        g.fill(barX - 1, y + xpBarY - 1, barX + barW + 1, y + xpBarY + 8, 0xFF000000);
-        g.fill(barX, y + xpBarY, barX + barW, y + xpBarY + 7, WELL);
+        int barX = x + COL_X;
+        int barW = COL_W;
+        g.fill(barX - 1, y + xpBarY - 1, barX + barW + 1, y + xpBarY + 10, 0xFF000000);
+        g.fill(barX, y + xpBarY, barX + barW, y + xpBarY + 9, WELL);
         int fillW = Math.round(barW * data.growthProgress());
         if (fillW > 0) {
-            g.fillGradient(barX, y + xpBarY, barX + fillW, y + xpBarY + 7, XP_FILL_TOP, XP_FILL_BOTTOM);
+            g.fillGradient(barX, y + xpBarY, barX + fillW, y + xpBarY + 9, XP_FILL_TOP, XP_FILL_BOTTOM);
         }
         String barText = data.canGrow()
                 ? data.storedXp() + " / " + data.nextSlotCost() + " XP levels"
                 : (data.canRaiseCap() ? "Feed a Nether Star to widen" : "Fully fed");
-        g.drawCenteredString(font, barText, x + imageWidth / 2, y + xpBarY - 1, 0xFFFFFFFF);
+        g.drawCenteredString(font, barText, barX + barW / 2, y + xpBarY + 1, 0xFFFFFFFF);
+
+        // flavour, framed by rules that fade out from the centre. Full-size font wrapped to the column
+        // (at most two lines) rather than scaled down - a 75% font is unreadable at GUI scale 1.
+        LoopFrame.separator(g, x + COL_X, y + 65, COL_W, frame);
+        var lines = font.split(Component.translatable("hungryloop.flavour").withStyle(ChatFormatting.ITALIC), COL_W - 4);
+        for (int i = 0; i < Math.min(2, lines.size()); i++) {
+            g.drawString(font, lines.get(i), x + COL_X + (COL_W - font.width(lines.get(i))) / 2, y + 69 + i * 9, frame.flavour(), false);
+        }
+        LoopFrame.separator(g, x + COL_X, y + 87, COL_W, frame);
 
         // feed button
         boolean feedHover = inFeed(mouseX, mouseY);
@@ -149,15 +228,15 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
         g.fill(feedX - 1, feedY - 1, feedX + feedW + 1, feedY + feedH + 1, 0xFF000000);
         g.fillGradient(feedX, feedY, feedX + feedW, feedY + feedH,
                 feedHover ? 0xFF3A2E22 : 0xFF2A2018, feedHover ? 0xFF241C14 : 0xFF1C150F);
-        bevel(g, feedX, feedY, feedW, feedH, star ? 0xFFB06CC0 : COPPER,
-                star ? 0xFFD79CE0 : COPPER_LIGHT, COPPER_DARK);
+        bevel(g, feedX, feedY, feedW, feedH, star ? 0xFFB06CC0 : frame.edge(),
+                star ? 0xFFD79CE0 : frame.edgeLight(), frame.edgeDark());
         g.drawCenteredString(font, star ? "Widen" : "Feed", feedX + feedW / 2, feedY + 4,
                 feedHover ? 0xFFFFE9C9 : 0xFFE7C9A6);
 
         // player inventory wells
         for (Slot slot : menu.slots) {
             if (slot.container != menu.contentsContainer()) {
-                well(g, x + slot.x, y + slot.y, WELL, WELL_EDGE);
+                well(g, x + slot.x, y + slot.y, WELL, withAlpha(frame.edge(), 0x60));
             }
         }
     }
@@ -171,8 +250,8 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
     private int hoveredLockedSlot(double mouseX, double mouseY) {
         LoopContents data = menu.loopData();
         for (int i = menu.unlockedSlots(); i < data.slotCap(); i++) {
-            int sx = leftPos + HungryLoopMenu.loopSlotX(i);
-            int sy = topPos + HungryLoopMenu.loopSlotY(i);
+            int sx = leftPos + ringX(i);
+            int sy = topPos + ringY(i);
             if (mouseX >= sx && mouseX < sx + 16 && mouseY >= sy && mouseY < sy + 16) return i;
         }
         return -1;
@@ -209,6 +288,12 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
+    /** The title lives in the header plate (LoopFrame.header); only the inventory label is drawn here. */
+    @Override
+    protected void renderLabels(GuiGraphics g, int mouseX, int mouseY) {
+        g.drawString(font, playerInventoryTitle, inventoryLabelX, inventoryLabelY, 0xFFAF8A66, false);
+    }
+
     @Override
     public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         if (LoopOverlay.hasParent()) {
@@ -235,25 +320,26 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         super.render(g, mouseX, mouseY, partialTick); // renders bg + slots (not tooltips)
-        renderPlayerPreview(g, mouseX, mouseY);
         renderTooltip(g, mouseX, mouseY);             // AbstractContainerScreen leaves this to us
     }
 
-    /** A live player model beside the panel, so you can see which contained cosmetics are showing. */
-    private void renderPlayerPreview(GuiGraphics g, int mouseX, int mouseY) {
+    /**
+     * The wearer stands in the middle of the ring on a dark disc - the loop is around them, and the
+     * contained cosmetics show on the model as they would in game.
+     */
+    private void drawWearer(GuiGraphics g, int x, int y, int mouseX, int mouseY) {
         if (minecraft == null || minecraft.player == null) return;
-
-        int pw = 62;
-        int ph = 94;
-        int px = leftPos - pw - 4;
-        if (px < 2) px = leftPos + imageWidth + 4; // no room on the left - go right
-
-        int py = topPos + 2;
-        g.fillGradient(px, py, px + pw, py + ph, 0xFF241C30, 0xFF15101E);
-        bevel(g, px, py, pw, ph, COPPER, COPPER_LIGHT, COPPER_DARK);
-
+        int cx = x + HungryLoopMenu.RING_CX;
+        int cy = y + HungryLoopMenu.RING_CY;
+        int rd = Math.max(26, HungryLoopMenu.ringRadius(ringCount()) - 18);
+        for (int dy = -rd; dy <= rd; dy++) {
+            int half = (int) Math.round(Math.sqrt(rd * rd - dy * dy));
+            float f = Math.abs(dy) / (float) rd;
+            g.fill(cx - half, cy + dy, cx + half + 1, cy + dy + 1, withAlpha(0x000000, 0x60 + Math.round((1 - f) * 0x50)));
+        }
+        int h = Math.min(rd * 2 - 6, 84);
         InventoryScreen.renderEntityInInventoryFollowsMouse(g,
-                px + 4, py + 6, px + pw - 4, py + ph - 6, 30, 0.0625f, mouseX, mouseY, minecraft.player);
+                cx - rd, cy - h / 2, cx + rd, cy + h / 2, Math.max(18, h * 3 / 8), 0.0625f, mouseX, mouseY, minecraft.player);
     }
 
     @Override
@@ -331,11 +417,11 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
     /** Eye clicked over a loop slot, or the master eye. Returns the button id, or -1. */
     private int eyeButtonAt(double mx, double my) {
         LoopContents data = menu.loopData();
-        if (inEye(mx, my, leftPos + 6, topPos + 5)) return HungryLoopMenu.BUTTON_RENDER_SELF;
+        if (inEye(mx, my, leftPos + EYE_X, topPos + EYE_Y)) return HungryLoopMenu.BUTTON_RENDER_SELF;
         for (int i = 0; i < menu.unlockedSlots() && i < data.items().size(); i++) {
             if (data.items().get(i).isEmpty()) continue;
-            int ex = leftPos + HungryLoopMenu.loopSlotX(i) + 10;
-            int ey = topPos + HungryLoopMenu.loopSlotY(i) - 3;
+            int ex = leftPos + ringX(i) + 10;
+            int ey = topPos + ringY(i) - 3;
             if (inEye(mx, my, ex, ey)) return HungryLoopMenu.BUTTON_RENDER_BASE + i;
         }
         return -1;
@@ -347,48 +433,25 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
         return (Math.min(0xFF, alpha) << 24) | (argb & 0xFFFFFF);
     }
 
-    /** Faint dots drifting slowly upward, wrapping - a subtle nebula behind the panel. */
-    private void drawStarfield(GuiGraphics g, int x, int y, long time) {
-        int inX = x + 3, inY = y + 20, w = imageWidth - 6, h = HungryLoopMenu.PLAYER_INV_Y - 44;
-        for (int i = 0; i < 22; i++) {
-            int seedX = (int) ((i * 2654435761L >>> 8 & 0xFFFF) % w);
-            float speed = 0.004f + (i % 5) * 0.0015f;
-            int py = (int) (h - ((time * speed + i * 37) % h));
-            int alpha = 0x14 + (i % 3) * 0x0C;
-            g.fill(inX + seedX, inY + py, inX + seedX + 1, inY + py + 1, (alpha << 24) | 0xC9C0E0);
-        }
-    }
-
-    /** A bright point travelling the panel's inner border. */
-    private void drawBorderSpark(GuiGraphics g, int x, int y, long time, int color) {
-        int w = imageWidth - 4, h = imageHeight - 4;
-        int perim = 2 * (w + h);
-        int p = (int) ((time / 6) % perim);
-        int sx, sy;
-        if (p < w) { sx = x + 2 + p; sy = y + 2; }
-        else if (p < w + h) { sx = x + w + 1; sy = y + 2 + (p - w); }
-        else if (p < 2 * w + h) { sx = x + w + 1 - (p - w - h); sy = y + h + 1; }
-        else { sx = x + 2; sy = y + h + 1 - (p - 2 * w - h); }
-        g.fill(sx - 1, sy - 1, sx + 2, sy + 2, withAlpha(color, 0xB0));
-        g.fill(sx, sy, sx + 1, sy + 1, 0xFFFFFFFF);
-    }
-
-    /** A glowing head with a fading tail, running along the unlocked stretch of the constellation. */
-    private void drawConstellationPulse(GuiGraphics g, int x, int y, long time, int nodes, int color) {
-        if (nodes < 2) return;
-        float head = (time % 5000L) / 5000f * (nodes - 1);
-        for (int trail = 0; trail < 5; trail++) {
-            float at = head - trail * 0.45f;
-            if (at < 0) continue;
-            int lo = (int) Math.floor(at);
-            float frac = at - lo;
-            int[] a = HungryLoopMenu.loopSlotCenter(lo);
-            int[] b = HungryLoopMenu.loopSlotCenter(Math.min(lo + 1, nodes - 1));
-            int px = x + Math.round(a[0] + (b[0] - a[0]) * frac);
-            int py = y + Math.round(a[1] + (b[1] - a[1]) * frac);
-            int alpha = 0xC0 - trail * 0x28;
-            int size = trail == 0 ? 2 : 1;
-            g.fill(px - size, py - size, px + size + 1, py + size + 1, withAlpha(color, Math.max(0, alpha)));
+    /** A glowing head with a fading tail, running round the unlocked arc of the ring. */
+    private void drawRingPulse(GuiGraphics g, int x, int y, long time, int nodes, int color) {
+        boolean closed = nodes >= ringCount(); // full ring unlocked: the pulse can wrap around
+        float span = closed ? nodes : nodes - 1;
+        float head = (time % 6000L) / 6000f * span;
+        for (int trail = 0; trail < 6; trail++) {
+            float at = head - trail * 0.35f;
+            if (at < 0) {
+                if (!closed) continue;
+                at += nodes;
+            }
+            int lo = (int) Math.floor(at) % ringCount();
+            int hi = (lo + 1) % ringCount();
+            float frac = at - (float) Math.floor(at);
+            int ax = ringX(lo) + 8, ay = ringY(lo) + 8, bx = ringX(hi) + 8, by = ringY(hi) + 8;
+            int px = x + Math.round(ax + (bx - ax) * frac);
+            int py = y + Math.round(ay + (by - ay) * frac);
+            int size = trail == 0 ? 1 : 0;
+            g.fill(px - size, py - size, px + size + 1, py + size + 1, withAlpha(color, Math.max(0, 0xD0 - trail * 0x22)));
         }
     }
 

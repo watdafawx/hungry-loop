@@ -38,9 +38,16 @@ public class HungryLoopMenu extends AbstractContainerMenu {
     /** Hard ceiling on sub-slots; matches the highest {@code absoluteMaxSlots} can be. */
     public static final int MAX_LOOP_SLOTS = 54;
 
-    public static final int PANEL_WIDTH = 218;
-    public static final int PANEL_HEIGHT = 246;
-    public static final int PLAYER_INV_Y = 162;
+    // Wide and short so it fits a 240px-tall GUI: the ring of loop slots on the left, feed controls
+    // and the player inventory on the right.
+    public static final int PANEL_WIDTH = 362;
+    public static final int PANEL_HEIGHT = 212;
+    public static final int PLAYER_INV_X = 192;
+    public static final int PLAYER_INV_Y = 100;
+
+    /** Centre of the ring of loop slots; the player model stands in it. */
+    public static final int RING_CX = 96;
+    public static final int RING_CY = 116;
 
     public static final int BUTTON_FEED_ONE = 0;
     public static final int BUTTON_FEED_ALL = 1;
@@ -50,12 +57,6 @@ public class HungryLoopMenu extends AbstractContainerMenu {
     public static final int BUTTON_SLOT_BASE = 100;
     /** Toggle the cosmetic render of contained item {@code id - BUTTON_RENDER_BASE}. */
     public static final int BUTTON_RENDER_BASE = 200;
-
-    private static final int SNAKE_COLS = 6;
-    private static final int SNAKE_X0 = 18;
-    private static final int SNAKE_DX = 30;
-    private static final int SNAKE_Y0 = 26;
-    private static final int SNAKE_DY = 24;
 
     private final Player player;
     private final LoopLocator locator;
@@ -114,26 +115,40 @@ public class HungryLoopMenu extends AbstractContainerMenu {
         }
     }
 
-    // --- snake layout ---------------------------------------------------------------------------
+    // --- ring layout ----------------------------------------------------------------------------
 
+    /**
+     * The loop's slots sit on a ring around the wearer: index 0 at the top, clockwise. The radius
+     * grows with the slot count so neighbours never overlap (about 21px of arc per slot), within what
+     * the left half of the panel can hold. Positions are presentation only - the screen re-lays the
+     * slots every frame for the current capacity, so growing the loop just re-spaces the ring.
+     */
+    public static int ringRadius(int count) {
+        return (int) Math.max(44, Math.min(80, Math.round(count * 21 / (2 * Math.PI))));
+    }
+
+    /** Top-left of slot {@code index} on a ring of {@code count}. */
+    public static int ringSlotX(int index, int count) {
+        double a = -Math.PI / 2 + 2 * Math.PI * index / Math.max(1, count);
+        return RING_CX - 8 + (int) Math.round(Math.cos(a) * ringRadius(count));
+    }
+
+    public static int ringSlotY(int index, int count) {
+        double a = -Math.PI / 2 + 2 * Math.PI * index / Math.max(1, count);
+        return RING_CY - 8 + (int) Math.round(Math.sin(a) * ringRadius(count));
+    }
+
+    /** Server-side and initial positions: a 12-slot ring. The screen re-lays them for the real count. */
     public static int loopSlotX(int index) {
-        int row = index / SNAKE_COLS;
-        int col = index % SNAKE_COLS;
-        int eff = row % 2 == 0 ? col : SNAKE_COLS - 1 - col; // serpentine
-        return SNAKE_X0 + eff * SNAKE_DX + (int) Math.round(Math.cos(index * 0.5) * 2);
+        return ringSlotX(index, 12);
     }
 
     public static int loopSlotY(int index) {
-        int row = index / SNAKE_COLS;
-        return SNAKE_Y0 + row * SNAKE_DY + (int) Math.round(Math.sin(index * 0.8) * 3);
-    }
-
-    public static int[] loopSlotCenter(int index) {
-        return new int[]{loopSlotX(index) + 8, loopSlotY(index) + 8};
+        return ringSlotY(index, 12);
     }
 
     private void addPlayerSlots(Inventory inv) {
-        int x0 = (PANEL_WIDTH - 9 * 18) / 2;
+        int x0 = PLAYER_INV_X;
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
                 addSlot(new Slot(inv, col + row * 9 + 9, x0 + col * 18, PLAYER_INV_Y + row * 18));
