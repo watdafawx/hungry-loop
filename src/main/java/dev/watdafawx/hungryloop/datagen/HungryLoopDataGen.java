@@ -120,7 +120,15 @@ public final class HungryLoopDataGen {
 
         @Override
         protected void registerModels() {
-            basicItem(ModItems.HUNGRY_LOOP.get());
+            // The textures are animated strips (.png.mcmeta). Shiny loops swap to the aqua one via
+            // the hungryloop:shiny item property (HungryLoopClient).
+            var shiny = withExistingParent("hungry_loop_shiny", mcLoc("item/generated"))
+                    .texture("layer0", modLoc("item/hungry_loop_shiny"));
+            basicItem(ModItems.HUNGRY_LOOP.get())
+                    .override()
+                    .predicate(ResourceLocation.fromNamespaceAndPath(HungryLoop.MODID, "shiny"), 1f)
+                    .model(shiny)
+                    .end();
         }
     }
 }

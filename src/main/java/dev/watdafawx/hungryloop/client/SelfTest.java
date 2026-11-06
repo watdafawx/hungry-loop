@@ -261,6 +261,10 @@ public final class SelfTest {
             if (wants("moves")) suite.addAll(provisionedMoves(items));
             suite.addAll(abilityScenarios());
             if (wants("scales")) suite.addAll(scalesScenario(items));
+            if (wants("body")) {
+                suite.addAll(bodyScenario("body-copper", items, false));
+                suite.addAll(bodyScenario("body-shiny", items, true));
+            }
             if (wants("look")) {
                 suite.addAll(lookScenario("look-copper", items, false));
                 suite.addAll(lookScenario("look-shiny", items, true));
@@ -522,6 +526,50 @@ public final class SelfTest {
             org.lwjgl.glfw.GLFW.glfwSetWindowSize(mc.getWindow().getWindow(), 854, 480);
             mc.options.guiScale().set(0);
             mc.resizeDisplay();
+            return true;
+        });
+        return seq;
+    }
+
+    // --- body: the worn loop on the player, and the animated sprites in the hotbar --------------
+
+    private static List<BooleanSupplier> bodyScenario(String name, List<Item> items, boolean shiny) {
+        List<BooleanSupplier> seq = new ArrayList<>();
+        ItemStack worn = new ItemStack(ModItems.HUNGRY_LOOP.get());
+        worn.set(ModDataComponents.LOOP_CONTENTS.get(), new LoopContents(4, 0, 0, shiny, 0,
+                List.of(), LoopContents.ALL_RENDER, true));
+        seq.add(provision(name, List.of(worn)));
+        seq.add(() -> {
+            onServer(p -> {
+                for (int i = 0; i < 3; i++) p.getInventory().setItem(i, worn.copy()); // hotbar sprites
+                p.getInventory().selected = 5; // empty hand, so the held item doesn't hide the ring
+                p.setYRot(180);
+                p.setXRot(0);
+                return null;
+            });
+            Minecraft mc = Minecraft.getInstance();
+            mc.options.setCameraType(net.minecraft.client.CameraType.THIRD_PERSON_FRONT);
+            mc.player.getInventory().selected = 5;
+            mc.getConnection().send(new ServerboundSetCarriedItemPacket(5));
+            mc.player.setYRot(180);
+            mc.player.setXRot(0);
+            return true;
+        });
+        waitTicks(seq, SETTLE);
+        seq.add(() -> {
+            screenshot(name + "-a");
+            return true;
+        });
+        waitTicks(seq, 7);
+        seq.add(() -> {
+            screenshot(name + "-b");
+            Minecraft.getInstance().options.setCameraType(net.minecraft.client.CameraType.FIRST_PERSON);
+            return true;
+        });
+        waitTicks(seq, 10);
+        seq.add(() -> {
+            screenshot(name + "-firstperson");
+            record(name, List.of());
             return true;
         });
         return seq;

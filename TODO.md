@@ -315,10 +315,12 @@ So the loop **grants real Curios slots** and mirrors its contents into them.
 
 - [x] Animated loop screen frame (`client.LoopFrame`, PoE-unique inspired) + ring layout around the
       wearer; fits every GUI scale (SelfTest `scales`, `look`). 0.8.0.
-- [ ] Animated item sprite that sells the "hungry" idea (the loop's maw chewing / pulsing).
-      Draft static 32×32 + shiny variant in `art/drafts/` (not wired in yet).
-- [ ] Physical 3D model rendered on the player in third person (Curios/Accessories render layer),
-      maybe first person too if it reads well.
+- [x] Animated item sprite: 32×32, 16 interpolated frames (`.png.mcmeta`) - a glint runs round the
+      band, the pearl pulses. Shiny loops swap to an aqua strip via the `hungryloop:shiny` item property
+      (model override, datagen). Frames generated from `art/drafts/hungry_loop_32.png`.
+- [x] The worn loop on the main hand: third person via a Curios renderer (`LoopCurioRenderer`), first
+      person on the empty-hand arm via `RenderArmEvent` (`LoopFirstPerson`, smaller). Both respect the
+      master eye. SelfTest `body` screenshots. Still the flat sprite, not a sculpted 3D model.
 
 ## Open design questions (tracked in DESIGN.md)
 

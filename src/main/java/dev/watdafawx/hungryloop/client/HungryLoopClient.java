@@ -24,6 +24,21 @@ public final class HungryLoopClient {
     private HungryLoopClient() {}
 
     @SubscribeEvent
+    static void onClientSetup(net.neoforged.fml.event.lifecycle.FMLClientSetupEvent event) {
+        // 1 for shiny loops: the item model's override swaps in the aqua texture.
+        event.enqueueWork(() -> net.minecraft.client.renderer.item.ItemProperties.register(
+                dev.watdafawx.hungryloop.ModItems.HUNGRY_LOOP.get(), SHINY_PROPERTY,
+                (stack, level, entity, seed) -> dev.watdafawx.hungryloop.item.HungryLoopItem.contentsOf(stack).shiny() ? 1f : 0f));
+        // the loop drawn on the wearer's hand (third person)
+        top.theillusivec4.curios.api.client.CuriosRendererRegistry.register(
+                dev.watdafawx.hungryloop.ModItems.HUNGRY_LOOP.get(), LoopCurioRenderer::new);
+    }
+
+    /** Item property the model override keys the shiny texture on (also used by datagen). */
+    public static final net.minecraft.resources.ResourceLocation SHINY_PROPERTY =
+            net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(dev.watdafawx.hungryloop.HungryLoop.MODID, "shiny");
+
+    @SubscribeEvent
     static void onRegisterScreens(RegisterMenuScreensEvent event) {
         event.register(ModMenus.HUNGRY_LOOP.get(), HungryLoopScreen::new);
     }

@@ -1,5 +1,13 @@
 {
   "parent": "minecraft:item/generated",
+  "overrides": [
+    {
+      "model": "hungryloop:item/hungry_loop_shiny",
+      "predicate": {
+        "hungryloop:shiny": 1.0
+      }
+    }
+  ],
   "textures": {
     "layer0": "hungryloop:item/hungry_loop"
   }
