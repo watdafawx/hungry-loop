@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.6
+
+- The Curios panel no longer rebuilds itself every few seconds when it has more than one page (packs with many slot types) and Relics are worn, so hover animations stop restarting.
+
 ## 0.6.5
 
 - Fixed empty, unclickable "ghost" slots in the Curios panel when a loop is worn and the panel has more than one page (packs with many slot types).

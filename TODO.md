@@ -85,8 +85,10 @@ So the loop **grants real Curios slots** and mirrors its contents into them.
       list, which must match the server's. SelfTest `reopen` group checks every page for dead cells
       and grid holes (mutation-tested). Run it with `maxSlotsPerPage = 12` in
       `run/defaultconfigs/curios-server.toml` to force paging in the dev world.
-- [ ] `CuriosRebuildGate` only covers single-page panels: a paged panel still rebuilds ~5×/100
-      idle ticks with Relics worn, loop or not (SelfTest `idle` at 12/page).
+- [x] `CuriosRebuildGate` covers paged panels: it compares the on-screen slots with the exact
+      (type, index) window `setPage` would build for the current page, plus the page count. Before,
+      a paged panel rebuilt ~5×/100 idle ticks with Relics worn, loop or not (SelfTest `idle` at
+      12/page failed; passes now).
 - [~] **Accessories + its Curios compat layer** (`integration/accessories`, own mixin config gated by
       `AccessoriesMixinPlugin`). The compat layer backs Curios with Accessories containers, drops
       every Curios client packet and swaps in Accessories' screens, so none of the Curios-side
