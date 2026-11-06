@@ -77,7 +77,30 @@ So the loop **grants real Curios slots** and mirrors its contents into them.
       full working tooltip. Removed, along with its `setPage` HEAD sync (which also fired ~20×/s).
 - [x] `CuriosPanelLayoutMixin` — after `setPage`, rewrites *presentation only* (slot `x`/`y`,
       `grid`, `panelWidth`) so hidden slots leave no gaps and the player's own curios don't shuffle.
-      Needs an AT to drop `final` from `Slot#x`/`#y`. Multi-page panels are left alone.
+      Needs an AT to drop `final` from `Slot#x`/`#y`.
+- [x] **Ghost slots on multi-page Curios panels.** The layout mixin used to skip panels with more
+      than one page, so in packs with many slot types (TNP Limitless 8) every mirror on the panel
+      was an empty, unclickable cell. It now compacts within the page `setPage` built. A page can
+      show fewer than `maxSlotsPerPage` slots; re-paging around mirrors would change the menu's slot
+      list, which must match the server's. SelfTest `reopen` group checks every page for dead cells
+      and grid holes (mutation-tested). Run it with `maxSlotsPerPage = 12` in
+      `run/defaultconfigs/curios-server.toml` to force paging in the dev world.
+- [ ] `CuriosRebuildGate` only covers single-page panels: a paged panel still rebuilds ~5×/100
+      idle ticks with Relics worn, loop or not (SelfTest `idle` at 12/page).
+- [~] **Accessories + its Curios compat layer** (`integration/accessories`, own mixin config gated by
+      `AccessoriesMixinPlugin`). The compat layer backs Curios with Accessories containers, drops
+      every Curios client packet and swaps in Accessories' screens, so none of the Curios-side
+      hiding or sync applies:
+      - mirror rows hidden + read-only in both Accessories screens (`AccessoriesInternalSlotMixin`),
+        original screen's column compacted (`AccessoriesMenuLayoutMixin`), experimental grid drops
+        them (`AccessoriesExperimentalMenuMixin`);
+      - layout changes pushed with Accessories' full `SyncEntireContainer` + server-side menu reopen,
+        instead of the dropped `SPacketSyncCurios` (client sizes lagged the server otherwise).
+      - SelfTest runs the `acc-*` scenarios instead of the Curios ones when Accessories is loaded.
+      - Loop slot count: the compat layer ignores `size` on Curios slot types new to Accessories
+        (`CuriosCompat` only applies it when a builder already existed), so our size-0 `loop` type
+        became 1 and players got config+1 loop slots. `LoopSlotProvider` now adds
+        `config - base size` instead of a flat `config`. SelfTest checks the count on both paths.
 - [x] **Push the mirror layout as one `SPacketSyncCurios`, never as per-slot deltas.** Curios'
       `SPacketSyncStack` addresses a slot by raw index while `SPacketSyncModifiers` resizes the list
       those indices address; the loop resizes constantly, so the two raced. That race caused the

@@ -57,6 +57,18 @@ artifacts-neoforge-13.2.5.jar
 
 `scripts/fetch-testmods.ps1` re-fetches the Modrinth ones. Versions must match `gradle.properties`.
 
+**Accessories testing.** Real packs (TNP Limitless 8) may run Accessories + its Curios compat layer,
+which replaces Curios' inventory, screen and sync. Its three jars
+(`accessories-neoforge-*`, `accessories_compat_layer-neoforge-*`, `owo-lib-neoforge-*`) are
+installed in `run/mods/`, so the dev client runs the Accessories path (SelfTest runs its `acc-*` and
+parity scenarios). Move them to `run/mods-off/` to test the plain Curios path (the full Curios
+suite). Test both before claiming a UI or sync fix.
+
+**Multi-page Curios panel.** The dev world has few slot types, so the Curios panel is one page.
+Packs with many types paginate, and the ghost-slot bug only showed there. Set
+`maxSlotsPerPage = 12` in `run/defaultconfigs/curios-server.toml` and `run/config/curios-server.toml`
+to force paging.
+
 **`apothic_compats` is deliberately not in `build.gradle`.** It's a datapack-only mod — it ships
 Apotheosis datapacks for ~30 mods (curio items among them) and exposes no API we call. It only needs
 to be *present at runtime* so Apotheosis will affix and socket curio items; nothing links against
@@ -75,8 +87,9 @@ without that mod (`NoClassDefFoundError`).
 
 Rules:
 
-- **All Apotheosis / Relics / Artifacts references live under `dev.watdafawx.hungryloop.integration.`**
-  and nowhere else.
+- **All Apotheosis / Relics / Artifacts / Accessories references live under
+  `dev.watdafawx.hungryloop.integration.`** and nowhere else. Accessories mixins are in their own
+  config (`hungryloop.accessories.mixins.json`), whose plugin skips them when Accessories is absent.
 - **No `@EventBusSubscriber` on any integration class.** Register their handlers by hand from
   `HungryLoop`'s constructor, each behind `ModList.get().isLoaded("apotheosis" | "relics" |
   "artifacts")`. Keep client-only integration (screens, tooltips) in a separate class from

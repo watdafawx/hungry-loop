@@ -59,12 +59,18 @@ public abstract class CuriosPanelLayoutMixin {
         }
         if (hidden.isEmpty()) return; // nothing of ours on screen - leave Curios' layout untouched
 
-        // Multi-page panels index into a page window we'd have to recompute too; leave those be.
-        if (this.totalPages > 1) return;
+        // Multi-page panels: setPage only built this page's window of slots, so compact within it.
+        // Re-paging so mirrors take no index at all would change which slots the menu holds, and
+        // that list must match the server's (see class doc) - so a page may show fewer than
+        // maxSlotsPerPage slots. Skipping multi-page panels instead (as this once did) left every
+        // mirror on them as a dead, empty cell: the "ghost slots" in packs with many slot types.
+        // Curios shifts the grid down 8px to make room for the page arrows; keep that.
+        int top = this.totalPages > 1 ? 16 : 8;
 
         int count = visible.size();
+        // Clamp the low bound at 1: a page holding only mirrors still needs a panel to page from.
         int columns = Mth.clamp((int) Math.ceil(count / 8.0),
-                Math.min(count, CuriosConfig.SERVER.minimumColumns.get()), 8);
+                Math.max(1, Math.min(count, CuriosConfig.SERVER.minimumColumns.get())), 8);
         this.panelWidth = 14 + 18 * columns;
 
         // Mirrors setPage's own placement, over the visible slots only.
@@ -73,7 +79,7 @@ public abstract class CuriosPanelLayoutMixin {
         int row = 1;
         for (CurioSlot slot : visible) {
             slot.x = (column - 1) * 18 + 7 - this.panelWidth;
-            slot.y = 8 + (row - 1) * 18;
+            slot.y = top + (row - 1) * 18;
 
             if (this.grid.size() < column) {
                 this.grid.add(1);

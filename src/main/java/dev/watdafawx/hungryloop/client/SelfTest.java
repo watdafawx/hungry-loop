@@ -1,5 +1,6 @@
 package dev.watdafawx.hungryloop.client;
 
+import dev.watdafawx.hungryloop.Config;
 import dev.watdafawx.hungryloop.HungryLoop;
 import dev.watdafawx.hungryloop.component.LoopContents;
 import dev.watdafawx.hungryloop.component.ModDataComponents;
@@ -48,6 +49,8 @@ import top.theillusivec4.curios.client.gui.CuriosScreen;
 import top.theillusivec4.curios.common.inventory.CurioSlot;
 import top.theillusivec4.curios.common.inventory.container.CuriosContainer;
 import top.theillusivec4.curios.common.network.client.CPacketOpenCurios;
+import top.theillusivec4.curios.common.network.client.CPacketPage;
+import dev.watdafawx.hungryloop.integration.accessories.AccessoriesTestHooks;
 import top.theillusivec4.curios.common.network.client.CPacketToggleRender;
 
 import java.io.IOException;
@@ -210,12 +213,39 @@ public final class SelfTest {
                 return true;
             }
             List<BooleanSupplier> suite = new ArrayList<>();
+            if (ACCESSORIES) {
+                // Accessories' compat layer replaces the Curios screen, which every Curios scenario
+                // drives - run the Accessories screen scenarios instead.
+                for (boolean experimental : new boolean[]{false, true}) {
+                    suite.addAll(accessoriesOpenScenario(items, experimental));
+                    suite.addAll(accessoriesEquipWhileOpenScenario(items, experimental));
+                    suite.addAll(accessoriesClickScenario(items, experimental));
+                }
+                // Screen-free: item worn directly vs in the loop, every attribute compared. Under the
+                // compat layer slot names are Accessories' (head->hat, feet->shoes, curio->any, ...)
+                // and wildcards no longer list "curio" - this is what proves affixes still fire.
+                if (wants("parity")) {
+                    List<Item> parityItems = new ArrayList<>(items);
+                    parityItems.addAll(onServer(SelfTest::multiTypeItems));
+                    for (Item item : parityItems) suite.addAll(parityScenario(item));
+                }
+                suite.add(() -> {
+                    finish();
+                    return true;
+                });
+                queueFront(suite);
+                return true;
+            }
             if (wants("order")) suite.addAll(loopSlotOrderScenario(items));
             if (wants("idle")) {
                 suite.addAll(idleChurnScenario(items, true));
                 suite.addAll(idleChurnScenario(items, false));
             }
             if (wants("open")) suite.addAll(equipWhileOpenScenario(items));
+            if (wants("reopen")) {
+                suite.addAll(reopenScenario("reopen-same", items.get(0), true));
+                suite.addAll(reopenScenario("reopen-mixed", null, false));
+            }
             if (wants("moves")) suite.addAll(provisionedMoves(items));
             if (wants("nested")) suite.addAll(nestedLoopScenario(items));
             if (wants("twoloops")) suite.addAll(twoLoopsScenario(items));
@@ -326,6 +356,281 @@ public final class SelfTest {
             return true;
         });
         return seq;
+    }
+
+    /**
+     * The player's own path, as reported: with the Curios screen open, click a loop from the
+     * inventory into the loop slot, close, and reopen. Every page of the reopened panel must be a
+     * hole-free grid of usable slots - no dead cells where the granted (mirror) slots sit.
+     * {@code same} fills the loop with four of one item (several grants in one type), otherwise four
+     * different types. Run it with a small {@code maxSlotsPerPage} too: multi-page panels are where
+     * packs with many slot types hit the ghosts.
+     */
+    private static List<BooleanSupplier> reopenScenario(String name, Item same, boolean useSame) {
+        List<BooleanSupplier> seq = new ArrayList<>();
+        seq.add(provision(name, List.of()));
+        openCuriosInto(seq);
+        waitTicks(seq, SETTLE);
+        seq.add(() -> {
+            onServer(p -> {
+                List<Item> picked = pickItems(p, 4);
+                p.getInventory().setItem(9, useSame ? loopOf(8, same, same, same, same) : loopOf(8, picked.toArray(Item[]::new)));
+                return null;
+            });
+            return true;
+        });
+        waitTicks(seq, 10);
+        seq.add(() -> {
+            click(playerSlotHolding(ModItems.HUNGRY_LOOP.get()));
+            return true;
+        });
+        waitTicks(seq, 5);
+        seq.add(() -> {
+            click(curioSlot(LOOP, 0));
+            return true;
+        });
+        waitTicks(seq, SETTLE);
+        seq.add(() -> {
+            Minecraft.getInstance().player.closeContainer();
+            return true;
+        });
+        waitTicks(seq, SETTLE);
+        openCuriosInto(seq);
+        waitTicks(seq, SETTLE);
+        seq.add(() -> {
+            List<String> fails = new ArrayList<>();
+            int mirrors = onServer(p -> Snap.of(p).mirrors);
+            if (mirrors != 4) fails.add("expected 4 mirrors after equip, server has " + mirrors + " (test didn't equip the loop)");
+            fails.addAll(ghostDiff());
+            fails.addAll(onServer(p -> Snap.of(p).invariantFails));
+            log("    client curios (* = mirror): " + Snap.of(Minecraft.getInstance().player).curios);
+            int pages = Minecraft.getInstance().player.containerMenu instanceof CuriosContainer cc ? cc.totalPages : 1;
+            log("    panel pages: " + pages);
+            List<BooleanSupplier> perPage = new ArrayList<>();
+            for (int page = 0; page < pages; page++) {
+                int pg = page;
+                if (page > 0) {
+                    perPage.add(() -> {
+                        PacketDistributor.sendToServer(new CPacketPage(Minecraft.getInstance().player.containerMenu.containerId, true));
+                        return true;
+                    });
+                    perPage.add(waitUntil(() -> Minecraft.getInstance().player.containerMenu instanceof CuriosContainer cc
+                            && cc.currentPage == pg, 60, "page " + pg + " never shown"));
+                    waitTicks(perPage, 10);
+                }
+                perPage.add(() -> {
+                    List<String> pf = new ArrayList<>(deadDrawnSlots());
+                    pf.addAll(gridHoles());
+                    pf.forEach(f -> fails.add("page " + pg + ": " + f));
+                    screenshot(name + "-p" + pg);
+                    return true;
+                });
+            }
+            perPage.add(() -> {
+                record(name, fails);
+                return true;
+            });
+            queueFront(perPage);
+            return true;
+        });
+        return seq;
+    }
+
+    // --- Accessories (with its Curios compat layer) ----------------------------------------------
+
+    private static final boolean ACCESSORIES = ModList.get().isLoaded("accessories");
+
+    private static String variant(boolean experimental) {
+        return experimental ? "experimental" : "original";
+    }
+
+    private static void openAccessoriesInto(List<BooleanSupplier> seq, boolean experimental) {
+        seq.add(() -> {
+            onServer(p -> {
+                AccessoriesTestHooks.open(p, experimental);
+                return null;
+            });
+            return true;
+        });
+        seq.add(waitUntil(() -> AccessoriesTestHooks.isScreen(Minecraft.getInstance().screen, experimental), 100,
+                "Accessories " + variant(experimental) + " screen never opened"));
+    }
+
+    /** Client vs server, server invariants, and the screen's own ghost-slot checks. */
+    private static List<String> accessoriesCheck(int expectMirrors) {
+        List<String> fails = new ArrayList<>(ghostDiff());
+        Snap srv = onServer(Snap::of);
+        fails.addAll(srv.invariantFails);
+        fails.addAll(loopSlotCountFails(srv));
+        if (srv.mirrors != expectMirrors) fails.add("mirror count " + srv.mirrors + " (expected " + expectMirrors + ")");
+        AbstractContainerMenu menu = Minecraft.getInstance().player.containerMenu;
+        fails.addAll(AccessoriesTestHooks.layoutFails(menu));
+        int rows = AccessoriesTestHooks.mirrorRows(menu);
+        if (expectMirrors > 0 && rows == 0) fails.add("menu has no mirror rows - nothing was hidden, check exercised nothing");
+        log("    client curios (* = mirror): " + Snap.of(Minecraft.getInstance().player).curios);
+        return fails;
+    }
+
+    private static BooleanSupplier accessoriesCheckStep(String name, int expectMirrors) {
+        return () -> {
+            if (accessoriesCheck(expectMirrors).isEmpty()) {
+                record(name, List.of());
+                screenshot(name);
+                return true;
+            }
+            List<BooleanSupplier> seq = new ArrayList<>();
+            waitTicks(seq, RECHECK);
+            seq.add(() -> {
+                record(name, accessoriesCheck(expectMirrors));
+                screenshot(name);
+                return true;
+            });
+            queueFront(seq);
+            return true;
+        };
+    }
+
+    /** Loop already worn, then the Accessories screen is opened: mirrors hidden, no gaps, no desync. */
+    private static List<BooleanSupplier> accessoriesOpenScenario(List<Item> items, boolean experimental) {
+        List<BooleanSupplier> seq = new ArrayList<>();
+        String name = "acc-open-" + variant(experimental);
+        seq.add(provision(name, List.of(loopOf(8, items.get(0), items.get(1), items.get(2), items.get(0)))));
+        waitTicks(seq, SETTLE);
+        openAccessoriesInto(seq, experimental);
+        waitTicks(seq, SETTLE);
+        seq.add(accessoriesCheckStep(name, 4));
+        return seq;
+    }
+
+    /**
+     * The player's path through the Accessories screen with real clicks: pick the loop up from the
+     * inventory, drop it into an empty loop slot, then take it back out into the inventory. Checks
+     * conservation (exactly one loop, nowhere duplicated) on top of the usual layout/desync checks.
+     */
+    private static List<BooleanSupplier> accessoriesClickScenario(List<Item> items, boolean experimental) {
+        List<BooleanSupplier> seq = new ArrayList<>();
+        String name = "acc-click-" + variant(experimental);
+        seq.add(provision(name, List.of()));
+        seq.add(() -> {
+            onServer(p -> {
+                p.getInventory().setItem(9, loopOf(8, items.get(0), items.get(3), items.get(4), items.get(0)));
+                return null;
+            });
+            return true;
+        });
+        waitTicks(seq, 10);
+        openAccessoriesInto(seq, experimental);
+        waitTicks(seq, SETTLE);
+        seq.add(() -> {
+            click(playerSlotHolding(ModItems.HUNGRY_LOOP.get()));
+            return true;
+        });
+        waitTicks(seq, 5);
+        seq.add(() -> {
+            click(AccessoriesTestHooks.loopSlot(Minecraft.getInstance().player.containerMenu, true));
+            return true;
+        });
+        waitTicks(seq, SETTLE * 2);
+        seq.add(() -> {
+            List<String> fails = accessoriesCheck(4);
+            int loops = onServer(p -> Snap.of(p).loops);
+            if (loops != 1) fails.add("loop count " + loops + " after equip click (expected 1)");
+            record(name + "-equip", fails);
+            screenshot(name + "-equip");
+            return true;
+        });
+        seq.add(() -> {
+            click(AccessoriesTestHooks.loopSlot(Minecraft.getInstance().player.containerMenu, false));
+            return true;
+        });
+        // Picking the loop up shrinks the granted containers, and Accessories reopens its menu on
+        // any resize - wait for that (a player's next click is never 5 ticks later), cursor kept.
+        waitTicks(seq, SETTLE);
+        seq.add(() -> {
+            String carried = onServer(p -> key(p.containerMenu.getCarried()));
+            log("    after pickup: server cursor holds " + carried);
+            if (!carried.startsWith(HungryLoop.MODID)) fail(name + "-pickup", "loop not on the cursor after the menu reopened (cursor: " + carried + ")");
+            click(firstEmptyMainInventorySlot());
+            return true;
+        });
+        waitTicks(seq, SETTLE * 2);
+        seq.add(() -> {
+            List<String> fails = accessoriesCheck(0);
+            int loops = onServer(p -> Snap.of(p).loops);
+            if (loops != 1) fails.add("loop count " + loops + " after unequip click (expected 1)");
+            if (playerSlotHolding(ModItems.HUNGRY_LOOP.get()) == null) fails.add("loop didn't land back in the inventory");
+            record(name + "-unequip", fails);
+            screenshot(name + "-unequip");
+            return true;
+        });
+        return seq;
+    }
+
+    /** The screen is open while the loop goes on and comes off - the reported ghost path. */
+    private static List<BooleanSupplier> accessoriesEquipWhileOpenScenario(List<Item> items, boolean experimental) {
+        List<BooleanSupplier> seq = new ArrayList<>();
+        String name = "acc-equip-while-open-" + variant(experimental);
+        seq.add(provision(name, List.of()));
+        openAccessoriesInto(seq, experimental);
+        waitTicks(seq, SETTLE);
+        seq.add(provision(name + " (equip)", List.of(loopOf(8, items.get(3), items.get(4), items.get(5))), false));
+        waitTicks(seq, SETTLE * 2);
+        seq.add(accessoriesCheckStep(name, 3));
+        seq.add(provision(name + " (unequip)", List.of(), false));
+        waitTicks(seq, SETTLE * 2);
+        seq.add(accessoriesCheckStep("acc-unequip-while-open-" + variant(experimental), 0));
+        return seq;
+    }
+
+    /**
+     * The loop's own slot type must have exactly the configured number of slots - independent of
+     * the type's base size (Accessories' compat layer turns our size-0 type into size 1).
+     */
+    private static List<String> loopSlotCountFails(Snap srv) {
+        int have = srv.curios.getOrDefault(LOOP, List.of()).size();
+        return have == Config.loopSlots() ? List.of()
+                : List.of("loop slot type has " + have + " slots, config says " + Config.loopSlots());
+    }
+
+    /**
+     * A curio slot that isn't parked but can't be used: on screen as an empty cell, never
+     * interactive. This is the "ghost slot" players see.
+     */
+    private static List<String> deadDrawnSlots() {
+        List<String> fails = new ArrayList<>();
+        for (Slot slot : Minecraft.getInstance().player.containerMenu.slots) {
+            if (slot instanceof CurioSlot cs && cs.x != LoopSlotMirror.PARKED && !cs.isActive()) {
+                fails.add("DEAD slot on panel " + cs.getIdentifier() + ":" + cs.getSlotIndex() + " holds " + key(cs.getItem())
+                        + " at " + cs.x + "," + cs.y);
+            }
+        }
+        return fails;
+    }
+
+    /**
+     * The on-panel curio slots must fill the grid row by row with no empty cell before the last
+     * slot. Independent of how the mixin lays things out: it only reads final positions.
+     */
+    private static List<String> gridHoles() {
+        List<int[]> cells = new ArrayList<>();
+        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE;
+        for (Slot slot : Minecraft.getInstance().player.containerMenu.slots) {
+            if (slot instanceof CurioSlot cs && cs.x != LoopSlotMirror.PARKED) {
+                cells.add(new int[]{cs.x, cs.y});
+                minX = Math.min(minX, cs.x);
+                minY = Math.min(minY, cs.y);
+                maxX = Math.max(maxX, cs.x);
+            }
+        }
+        if (cells.isEmpty()) return List.of();
+        int columns = (maxX - minX) / 18 + 1;
+        Set<Integer> taken = new TreeSet<>();
+        for (int[] c : cells) taken.add(((c[1] - minY) / 18) * columns + (c[0] - minX) / 18);
+        List<String> fails = new ArrayList<>();
+        int last = ((TreeSet<Integer>) taken).last();
+        for (int i = 0; i < last; i++) if (!taken.contains(i)) fails.add("HOLE in panel grid at cell " + i + " (" + columns + " columns)");
+        if (taken.size() != cells.size()) fails.add("two curio slots share a cell");
+        return fails;
     }
 
     /**
@@ -1073,6 +1378,7 @@ public final class SelfTest {
         Minecraft mc = Minecraft.getInstance();
         List<String> fails = new ArrayList<>(ghostDiff());
         Snap srv = onServer(Snap::of);
+        fails.addAll(loopSlotCountFails(srv));
 
         if (srv.loops != baseLoops) fails.add("loop count " + srv.loops + " (expected " + baseLoops + ") - dupe or loss");
         if (srv.mirrors != baseMirrors) fails.add("mirror count " + srv.mirrors + " (expected " + baseMirrors + ")");
@@ -1086,7 +1392,12 @@ public final class SelfTest {
 
         AbstractContainerMenu menu = mc.player.containerMenu;
         int visible = visibleCurioSlots(menu);
-        if (visible != baseVisible) fails.add("visible curio slots " + visible + " (expected " + baseVisible + ")");
+        // On a multi-page panel mirrors are compacted out of their own page only, so that page shows
+        // fewer slots than before - the count isn't an invariant there, a hole-free panel is.
+        boolean paged = menu instanceof CuriosContainer pc && pc.totalPages > 1;
+        if (!paged && visible != baseVisible) fails.add("visible curio slots " + visible + " (expected " + baseVisible + ")");
+        fails.addAll(deadDrawnSlots());
+        fails.addAll(gridHoles());
         for (Slot slot : menu.slots) {
             if (slot instanceof CurioSlot cs && LoopSlotMirror.isMirror(cs.getItem()) != (cs.x == LoopSlotMirror.PARKED)) {
                 fails.add("parking: " + cs.getIdentifier() + ":" + cs.getSlotIndex() + " mirror="
@@ -1225,6 +1536,16 @@ public final class SelfTest {
         AbstractContainerMenu menu = Minecraft.getInstance().player.containerMenu;
         for (Slot slot : menu.slots) {
             if (slot.container == Minecraft.getInstance().player.getInventory() && !slot.hasItem()) return slot;
+        }
+        return null;
+    }
+
+    /** Like {@link #firstEmptyPlayerSlot} but never an armor/offhand slot (those are inventory slots too). */
+    private static Slot firstEmptyMainInventorySlot() {
+        AbstractContainerMenu menu = Minecraft.getInstance().player.containerMenu;
+        for (Slot slot : menu.slots) {
+            if (slot.container == Minecraft.getInstance().player.getInventory() && slot.getContainerSlot() >= 9
+                    && slot.getContainerSlot() < 36 && !slot.hasItem()) return slot;
         }
         return null;
     }

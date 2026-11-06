@@ -16,6 +16,7 @@ import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.common.util.TriState;
 import top.theillusivec4.curios.api.CuriosApi;
 import top.theillusivec4.curios.api.event.CurioCanEquipEvent;
+import top.theillusivec4.curios.api.type.ISlotType;
 
 import java.util.List;
 
@@ -86,9 +87,15 @@ public final class LoopSlotProvider {
     private static void apply(ServerPlayer player) {
         CuriosApi.getCuriosInventory(player).ifPresent(handler -> {
             handler.removeSlotModifier(HungryLoopCurio.LOOP_SLOT, MODIFIER_ID);
-            int count = Config.loopSlots();
-            if (count > 0) {
-                handler.addTransientSlotModifier(HungryLoopCurio.LOOP_SLOT, MODIFIER_ID, count,
+            // Add the difference to the type's base size rather than assuming the datapack's 0.
+            // Accessories' Curios compat layer drops "size" for slot types it hasn't seen before
+            // (CuriosCompat only applies it when a builder already existed), so there the base is
+            // Accessories' default of 1 and a flat +count gave one loop slot too many. A pack
+            // datapack overriding our size is handled the same way.
+            int base = CuriosApi.getSlot(HungryLoopCurio.LOOP_SLOT, player.level()).map(ISlotType::getSize).orElse(0);
+            int delta = Config.loopSlots() - base;
+            if (delta != 0) {
+                handler.addTransientSlotModifier(HungryLoopCurio.LOOP_SLOT, MODIFIER_ID, delta,
                         AttributeModifier.Operation.ADD_VALUE);
             }
         });

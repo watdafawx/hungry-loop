@@ -93,6 +93,12 @@ repositories {
         url "https://api.modrinth.com/maven"
         content { includeGroup "maven.modrinth" }
     }
+
+    // wisp-forest's own maven - Accessories and its library owo-lib. Scoped like the others.
+    maven {
+        url "https://maven.wispforest.io/releases"
+        content { includeGroupByRegex(/io\.wispforest(\..*)?/) } // owo also pulls io.wispforest.endec
+    }
 }
 
 dependencies {
@@ -118,6 +124,12 @@ dependencies {
     compileOnly "maven.modrinth:relics-mod:${relics_version}"
     compileOnly "maven.modrinth:artifacts:${artifacts_version}"
     compileOnly "maven.modrinth:shatterbyte-lib:${octolib_version}" // OctoLib (Relics' dependency)
+    // Accessories (+ its Curios compat layer, runtime-only) replaces Curios' inventory and screen in
+    // packs that ship it. Only integration.accessories and the accessories mixin config touch it.
+    // Non-transitive: their POMs pull Sinytra's forgified Fabric API and more, none of which our
+    // integration classes touch.
+    compileOnly("io.wispforest:accessories-neoforge:${accessories_version}") { transitive = false }
+    compileOnly("io.wispforest:owo-lib-neoforge:${owo_version}") { transitive = false }
 }
 
 tasks.withType(JavaCompile).configureEach {

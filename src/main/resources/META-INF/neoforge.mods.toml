@@ -6,6 +6,10 @@ issueTrackerURL = "https://github.com/watdafawx/hungry-loop/issues"
 [[mixins]]
 config = "hungryloop.mixins.json"
 
+# Only applied when Accessories is installed - its plugin skips every mixin otherwise.
+[[mixins]]
+config = "hungryloop.accessories.mixins.json"
+
 [[mods]]
 modId = "${mod_id}"
 version = "${mod_version}"
@@ -66,5 +70,12 @@ side = "BOTH"
 modId = "artifacts"
 type = "optional"
 versionRange = "[13.0.0,)"
+ordering = "AFTER"
+side = "BOTH"
+
+[[dependencies.${mod_id}]]
+modId = "accessories"
+type = "optional"
+versionRange = "[1.1.0-beta.50,)"
 ordering = "AFTER"
 side = "BOTH"

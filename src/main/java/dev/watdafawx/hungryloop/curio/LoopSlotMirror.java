@@ -3,12 +3,14 @@ package dev.watdafawx.hungryloop.curio;
 import dev.watdafawx.hungryloop.HungryLoop;
 import dev.watdafawx.hungryloop.component.LoopContents;
 import dev.watdafawx.hungryloop.component.ModDataComponents;
+import dev.watdafawx.hungryloop.integration.accessories.AccessoriesSync;
 import dev.watdafawx.hungryloop.item.HungryLoopItem;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.ModList;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
@@ -51,6 +53,8 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class LoopSlotMirror {
 
     private static final int SYNC_INTERVAL = 3;
+
+    private static final boolean ACCESSORIES = ModList.get().isLoaded("accessories");
 
     /**
      * Where {@code CuriosPanelLayoutMixin} parks a hidden (mirror-holding) slot: far enough off-panel
@@ -217,7 +221,13 @@ public final class LoopSlotMirror {
             // three client-side patches (a deferred/replayed stack sync, a per-packet screen rebuild,
             // a rebuild gate); client.SelfTest's equip-while-open and move scenarios fail without it.
             // Only on an actual layout change, so this is rare - not the per-tick cooldown churn.
-            PacketDistributor.sendToPlayer(player, new SPacketSyncCurios(player.getId(), handler.getCurios()));
+            // With Accessories' Curios compat layer that packet is dropped on the client; the same
+            // all-at-once push goes through Accessories' own full sync instead.
+            if (ACCESSORIES) {
+                AccessoriesSync.fullSync(player);
+            } else {
+                PacketDistributor.sendToPlayer(player, new SPacketSyncCurios(player.getId(), handler.getCurios()));
+            }
         }
     }
 

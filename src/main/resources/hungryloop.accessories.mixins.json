@@ -1,0 +1,15 @@
+{
+  "required": true,
+  "minVersion": "0.8.5",
+  "package": "dev.watdafawx.hungryloop.integration.accessories.mixin",
+  "plugin": "dev.watdafawx.hungryloop.integration.accessories.mixin.AccessoriesMixinPlugin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "AccessoriesInternalSlotMixin",
+    "AccessoriesMenuLayoutMixin",
+    "AccessoriesExperimentalMenuMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
