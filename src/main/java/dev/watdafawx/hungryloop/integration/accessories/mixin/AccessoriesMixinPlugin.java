@@ -1,6 +1,5 @@
 package dev.watdafawx.hungryloop.integration.accessories.mixin;
 
-import net.neoforged.fml.loading.LoadingModList;
 import org.objectweb.asm.tree.ClassNode;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
@@ -9,14 +8,15 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Applies {@code hungryloop.accessories.mixins.json} only when Accessories is installed. The config is
+ * Applies {@code hungryloop.accessories.mixins.json} only when a supported Accessories is installed
+ * ({@link dev.watdafawx.hungryloop.integration.accessories.AccessoriesSupport}). The config is
  * {@code required} with {@code defaultRequire 1} so a broken target fails loudly in packs that do have
  * Accessories - but without this gate those same targets would crash every pack that doesn't.
  * Must not reference any Accessories type itself: it loads before mods do.
  */
 public final class AccessoriesMixinPlugin implements IMixinConfigPlugin {
 
-    private static final boolean ACCESSORIES = LoadingModList.get().getModFileById("accessories") != null;
+    private static final boolean ACCESSORIES = dev.watdafawx.hungryloop.integration.accessories.AccessoriesSupport.ENABLED;
 
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {

@@ -76,6 +76,7 @@ side = "BOTH"
 [[dependencies.${mod_id}]]
 modId = "accessories"
 type = "optional"
-versionRange = "[1.1.0-beta.50,)"
+# Any version: an unsupported Accessories just leaves the integration off (AccessoriesSupport).
+versionRange = "*"
 ordering = "AFTER"
 side = "BOTH"

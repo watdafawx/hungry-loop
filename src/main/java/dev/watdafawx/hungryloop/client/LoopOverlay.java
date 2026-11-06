@@ -29,7 +29,7 @@ import top.theillusivec4.curios.common.network.client.CPacketOpenCurios;
 @EventBusSubscriber(modid = HungryLoop.MODID, value = Dist.CLIENT)
 public final class LoopOverlay {
 
-    private static final boolean ACCESSORIES = ModList.get().isLoaded("accessories");
+    private static final boolean ACCESSORIES = dev.watdafawx.hungryloop.integration.accessories.AccessoriesSupport.ENABLED;
 
     private static Screen parent;
 

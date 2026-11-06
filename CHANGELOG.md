@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.1
+
+- Fixed: the game refused to start with Accessories older than 1.1.0-beta.50 ("only supports accessories 1.1.0-beta.50 or above"). Accessories stays optional and any version is accepted now; the Accessories integration turns on for 1.1.0-beta.48 and newer, and older versions fall back to plain Curios behaviour.
+
 ## 0.10.0
 
 - Worn loops now hang as small charms from the belt on your right hip, styled after the item: a rose-copper band with a pearl that gently pulses (aqua for shiny loops). Two loops hang side by side, tilted against each other. Hidden when the loop's eye toggle is off.

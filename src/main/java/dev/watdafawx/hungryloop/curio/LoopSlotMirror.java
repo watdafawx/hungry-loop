@@ -54,7 +54,7 @@ public final class LoopSlotMirror {
 
     private static final int SYNC_INTERVAL = 3;
 
-    private static final boolean ACCESSORIES = ModList.get().isLoaded("accessories");
+    private static final boolean ACCESSORIES = dev.watdafawx.hungryloop.integration.accessories.AccessoriesSupport.ENABLED;
 
     /**
      * Where {@code CuriosPanelLayoutMixin} parks a hidden (mirror-holding) slot: far enough off-panel

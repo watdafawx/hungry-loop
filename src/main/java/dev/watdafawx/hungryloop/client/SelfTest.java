@@ -900,7 +900,7 @@ public final class SelfTest {
 
     // --- Accessories (with its Curios compat layer) ----------------------------------------------
 
-    private static final boolean ACCESSORIES = ModList.get().isLoaded("accessories");
+    private static final boolean ACCESSORIES = dev.watdafawx.hungryloop.integration.accessories.AccessoriesSupport.ENABLED;
 
     private static String variant(boolean experimental) {
         return experimental ? "experimental" : "original";
