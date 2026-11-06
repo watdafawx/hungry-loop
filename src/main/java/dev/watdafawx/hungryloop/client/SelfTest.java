@@ -261,6 +261,7 @@ public final class SelfTest {
             if (wants("moves")) suite.addAll(provisionedMoves(items));
             suite.addAll(abilityScenarios());
             if (wants("scales")) suite.addAll(scalesScenario(items));
+            if (wants("arms")) suite.addAll(armsScenario());
             if (wants("body")) {
                 suite.addAll(bodyScenario("body-copper", items, false));
                 suite.addAll(bodyScenario("body-shiny", items, true));
@@ -572,6 +573,67 @@ public final class SelfTest {
             record(name, List.of());
             return true;
         });
+        return seq;
+    }
+
+    // --- arms: the first-person coil through arm animations (Punchy's, when installed) -----------
+
+    /**
+     * Two loops worn, empty hand, first person. Captures the arm idle, mid-punch (a few frames into
+     * a swing), sprinting, and walking, so the coil can be checked against whatever pose the arm
+     * renderer - vanilla or Punchy - draws the arm in.
+     */
+    private static List<BooleanSupplier> armsScenario() {
+        List<BooleanSupplier> seq = new ArrayList<>();
+        ItemStack worn = new ItemStack(ModItems.HUNGRY_LOOP.get());
+        worn.set(ModDataComponents.LOOP_CONTENTS.get(), new LoopContents(4, 0, 0, false, 0,
+                List.of(), LoopContents.ALL_RENDER, true));
+        seq.add(provision("arms", List.of(worn, worn.copy())));
+        seq.add(() -> {
+            Minecraft mc = Minecraft.getInstance();
+            mc.options.setCameraType(net.minecraft.client.CameraType.FIRST_PERSON);
+            mc.player.getInventory().selected = 5;
+            mc.getConnection().send(new ServerboundSetCarriedItemPacket(5));
+            mc.player.setXRot(10);
+            log("    punchy loaded: " + ModList.get().isLoaded("punchy"));
+            return true;
+        });
+        waitTicks(seq, SETTLE);
+        seq.add(() -> {
+            screenshot("arms-idle");
+            Minecraft.getInstance().player.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
+            return true;
+        });
+        for (int f = 1; f <= 4; f++) {
+            int frame = f;
+            waitTicks(seq, 1);
+            seq.add(() -> {
+                screenshot("arms-punch-" + frame);
+                return true;
+            });
+        }
+        waitTicks(seq, 20);
+        seq.add(() -> {
+            Minecraft mc = Minecraft.getInstance();
+            mc.options.keySprint.setDown(true);
+            mc.options.keyUp.setDown(true);
+            return true;
+        });
+        waitTicks(seq, 15);
+        seq.add(() -> {
+            screenshot("arms-sprint-a");
+            return true;
+        });
+        waitTicks(seq, 5);
+        seq.add(() -> {
+            screenshot("arms-sprint-b");
+            Minecraft mc = Minecraft.getInstance();
+            mc.options.keySprint.setDown(false);
+            mc.options.keyUp.setDown(false);
+            record("arms", List.of());
+            return true;
+        });
+        waitTicks(seq, 10);
         return seq;
     }
 
