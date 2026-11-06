@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.10.0
+
+- Worn loops now hang as small charms from the belt on your right hip, styled after the item: a rose-copper band with a pearl that gently pulses (aqua for shiny loops). Two loops hang side by side, tilted against each other. Hidden when the loop's eye toggle is off.
+- Removed the arm coil and the first-person hand rendering.
+
 ## 0.9.0
 
 - A worn loop now shows on your body: a copper coil wrapping the forearm from the wrist up, with the pearl at the hand. Wearing two loops coils both arms. Aqua for shiny loops; hidden when the loop's eye toggle is off.

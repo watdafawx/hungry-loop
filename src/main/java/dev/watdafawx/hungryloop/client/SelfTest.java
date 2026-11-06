@@ -262,6 +262,10 @@ public final class SelfTest {
             suite.addAll(abilityScenarios());
             if (wants("scales")) suite.addAll(scalesScenario(items));
             if (wants("arms")) suite.addAll(armsScenario());
+            if (wants("peers")) {
+                suite.addAll(peersScenario("artifacts"));
+                suite.addAll(peersScenario("relics"));
+            }
             if (wants("body")) {
                 suite.addAll(bodyScenario("body-copper", items, false));
                 suite.addAll(bodyScenario("body-shiny", items, true));
@@ -571,6 +575,65 @@ public final class SelfTest {
         seq.add(() -> {
             screenshot(name + "-firstperson");
             record(name, List.of());
+            return true;
+        });
+        return seq;
+    }
+
+    // --- peers: how other mods' worn gear looks, for reference -------------------------------------
+
+    /** Arm-worn items first (hands, bracelet, ring), then a few body ones, from one mod's namespace. */
+    private static List<Item> peerItems(ServerPlayer p, String namespace) {
+        List<String> order = List.of("hands", "bracelet", "ring", "necklace", "back", "belt", "head");
+        Map<String, Item> byType = new LinkedHashMap<>();
+        BuiltInRegistries.ITEM.keySet().stream().filter(id -> id.getNamespace().equals(namespace)).sorted().forEach(id -> {
+            Item item = BuiltInRegistries.ITEM.get(id);
+            ItemStack stack = new ItemStack(item);
+            if (CuriosApi.getCurio(stack).isEmpty()) return;
+            byType.putIfAbsent(ContentForwarding.resolveSlot(stack, p), item);
+        });
+        List<Item> out = new ArrayList<>();
+        for (String type : order) if (byType.containsKey(type)) out.add(byType.get(type));
+        return out;
+    }
+
+    private static List<BooleanSupplier> peersScenario(String namespace) {
+        List<BooleanSupplier> seq = new ArrayList<>();
+        if (!ModList.get().isLoaded(namespace)) return seq;
+        seq.add(provision("peers-" + namespace, List.of()));
+        seq.add(() -> {
+            onServer(p -> {
+                List<Item> items = peerItems(p, namespace);
+                log("    wearing: " + items.stream().map(i -> BuiltInRegistries.ITEM.getKey(i).getPath()).toList());
+                wearDirectly(p, items);
+                p.setYRot(180);
+                return null;
+            });
+            Minecraft mc = Minecraft.getInstance();
+            mc.player.getInventory().selected = 5;
+            mc.getConnection().send(new ServerboundSetCarriedItemPacket(5));
+            mc.options.setCameraType(net.minecraft.client.CameraType.THIRD_PERSON_FRONT);
+            mc.player.setYRot(180);
+            mc.player.setXRot(0);
+            return true;
+        });
+        waitTicks(seq, SETTLE);
+        seq.add(() -> {
+            screenshot("peers-" + namespace + "-front");
+            Minecraft.getInstance().options.setCameraType(net.minecraft.client.CameraType.THIRD_PERSON_BACK);
+            return true;
+        });
+        waitTicks(seq, 10);
+        seq.add(() -> {
+            screenshot("peers-" + namespace + "-back");
+            Minecraft.getInstance().options.setCameraType(net.minecraft.client.CameraType.FIRST_PERSON);
+            Minecraft.getInstance().player.setXRot(10);
+            return true;
+        });
+        waitTicks(seq, 10);
+        seq.add(() -> {
+            screenshot("peers-" + namespace + "-firstperson");
+            record("peers-" + namespace, List.of());
             return true;
         });
         return seq;

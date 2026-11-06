@@ -313,6 +313,9 @@ So the loop **grants real Curios slots** and mirrors its contents into them.
 
 ## Ideas for later
 
+- [x] 0.10.0: worn loops hang as belt charms on the right hip (`client.LoopCharm`), styled on the
+      sprite; a pair jostles. Replaced the arm coil / wrist ring; no first-person rendering. Designs
+      mocked in Blockbench (`loop_coil_designs`, design U).
 - [x] Animated loop screen frame (`client.LoopFrame`, PoE-unique inspired) + ring layout around the
       wearer; fits every GUI scale (SelfTest `scales`, `look`). 0.8.0.
 - [x] Animated item sprite: 32×32, 16 interpolated frames (`.png.mcmeta`) - a glint runs round the

@@ -5,19 +5,15 @@ import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.RenderLayerParent;
-import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import top.theillusivec4.curios.api.SlotContext;
 import top.theillusivec4.curios.api.client.ICurioRenderer;
 
 /**
- * Draws the worn loop as a coil round the wearer's forearm ({@link LoopCoil}): loop slot 0 on the
- * main arm, slot 1 on the other. It follows the arm's swing and the sneak pose. Curios only calls this while the loop's slot is set to render, which is the loop
- * screen's master eye, so hiding the loop there hides this too.
- *
- * <p>Registered in {@code HungryLoopClient}; with Accessories' compat layer the Curios renderer
- * registry is bridged, so it draws there as well.
+ * Draws the worn loop as a charm hanging from the belt ({@link LoopCharm}); two loops pair up on
+ * the hip. Follows the body's sneak pose. Curios only calls this while the loop's slot renders, which
+ * is the loop screen's master eye.
  */
 public final class LoopCurioRenderer implements ICurioRenderer {
 
@@ -28,16 +24,12 @@ public final class LoopCurioRenderer implements ICurioRenderer {
             float limbSwing, float limbSwingAmount, float partialTicks, float ageInTicks, float netHeadYaw, float headPitch) {
         if (!(parent.getModel() instanceof HumanoidModel<?> model)) return;
         LivingEntity entity = slotContext.entity();
-        // loop slot 0 coils the main arm, slot 1 the other one
-        HumanoidArm arm = slotContext.index() == 0 ? entity.getMainArm() : entity.getMainArm().getOpposite();
-        boolean left = arm == HumanoidArm.LEFT;
-
         pose.pushPose();
         ICurioRenderer.translateIfSneaking(pose, entity);
         ICurioRenderer.rotateIfSneaking(pose, entity);
-        (left ? model.leftArm : model.rightArm).translateAndRotate(pose);
-        LoopCoil.render(pose, buffers, light, left, LoopCoil.isSlim(entity),
-                dev.watdafawx.hungryloop.item.HungryLoopItem.contentsOf(stack).shiny(), false);
+        model.body.translateAndRotate(pose);
+        LoopCharm.render(pose, buffers, light, entity, slotContext.index(),
+                dev.watdafawx.hungryloop.item.HungryLoopItem.contentsOf(stack).shiny());
         pose.popPose();
     }
 }
