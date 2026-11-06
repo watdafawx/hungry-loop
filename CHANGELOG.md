@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.0
+
+- A worn loop now shows on your body: a copper coil wrapping the forearm from the wrist up, with the pearl at the hand. Wearing two loops coils both arms. Aqua for shiny loops; hidden when the loop's eye toggle is off.
+- First person shows a slimmer band at the wrist that follows your arm, including Punchy's arm animations.
+- The loop item has an animated sprite (a glint runs round the band, the pearl pulses), with its own aqua version for shiny loops.
+
 ## 0.8.0
 
 - New loop screen: an animated frame inspired by Path of Exile's unique items (copper title plate with turning end caps, a breathing ember border, drifting embers, the flavour line), in teal for shiny loops.
