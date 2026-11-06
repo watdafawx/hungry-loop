@@ -24,3 +24,6 @@ rc9.log
 
 bin/
 .eclipse/
+run-data/
+run-gametest/
+src/generated/resources/.cache/

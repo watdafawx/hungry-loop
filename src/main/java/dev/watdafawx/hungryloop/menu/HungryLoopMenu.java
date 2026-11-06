@@ -283,6 +283,9 @@ public class HungryLoopMenu extends AbstractContainerMenu {
     // --- open ---------------------------------------------------------------------------------
 
     public static void open(ServerPlayer player, LoopLocator locator) {
+        // Pull the worn mirrors' latest data into the stored items first, so what the menu shows (and
+        // hands back when an item is taken out) has the progress made while worn.
+        LoopSlotMirror.writeBackNow(player);
         ItemStack loop = locator.resolve(player);
         if (!(loop.getItem() instanceof HungryLoopItem)) return;
 

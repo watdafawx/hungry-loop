@@ -78,7 +78,18 @@ public final class LoopSlotMirror {
      */
     private static final Set<UUID> PURGE_PENDING = ConcurrentHashMap.newKeySet();
 
-    private record Want(ItemStack stack, boolean render) {}
+    /**
+     * How often a mirror's live data is copied back into the loop's stored item. Relics rewrites its
+     * items' data every few ticks; writing each change straight back would make Curios see the loop
+     * change every few ticks too and resync it. Every 2 s bounds what an unequip can lose.
+     */
+    private static final int WRITE_BACK_INTERVAL = 40;
+
+    /** One contained item to mirror: where it lives in which worn loop, so its mirror can write back. */
+    private record Want(ItemStack stack, boolean render, ItemStack loop, int index) {}
+
+    /** A mirror that stayed in place this pass, paired with the stored item it copies. */
+    private record Kept(ItemStack mirror, Want want) {}
 
     private LoopSlotMirror() {}
 
@@ -92,6 +103,34 @@ public final class LoopSlotMirror {
             purgeStrayMirrors(player);
             sync(player, false);
         }
+        if (player.tickCount % OVERFLOW_INTERVAL == 0) ejectOverflow(player);
+    }
+
+    private static final int OVERFLOW_INTERVAL = 20;
+
+    /**
+     * Hand back anything past a loop's capacity (see {@link LoopOverflow}), for worn loops and loops
+     * in the inventory. Not while the loop menu is open: it edits the contents itself and writes them
+     * on close, so the next pass catches up.
+     */
+    private static void ejectOverflow(ServerPlayer player) {
+        if (player.containerMenu instanceof dev.watdafawx.hungryloop.menu.HungryLoopMenu) return;
+        var handler = CuriosApi.getCuriosInventory(player).orElse(null);
+        if (handler != null) {
+            List<SlotResult> worn = handler.findCurios(s -> s.getItem() instanceof HungryLoopItem && !isMirror(s));
+            boolean any = false;
+            for (SlotResult r : worn) {
+                LoopContents data = r.stack().getOrDefault(ModDataComponents.LOOP_CONTENTS.get(), LoopContents.DEFAULT);
+                if (data.items().size() > data.totalSlots()) any = true;
+            }
+            if (any) {
+                writeBackNow(player); // eject the items' live data, not a stale stored copy
+                for (SlotResult r : worn) LoopOverflow.eject(player, r.stack());
+                sync(player, true);
+            }
+        }
+        var inv = player.getInventory();
+        for (int i = 0; i < inv.getContainerSize(); i++) LoopOverflow.eject(player, inv.getItem(i));
     }
 
     /** A loop left a slot last tick: purge only if it really is gone, rather than mid-move. */
@@ -147,6 +186,16 @@ public final class LoopSlotMirror {
         }
     }
 
+    /** Reconcile now and copy every mirror's live data back into its loop (see {@link #writeBack}). */
+    public static void writeBackNow(ServerPlayer player) {
+        if (!RECONCILING.add(player.getUUID())) return;
+        try {
+            reconcile(player, true);
+        } finally {
+            RECONCILING.remove(player.getUUID());
+        }
+    }
+
     public static void sync(ServerPlayer player) {
         sync(player, true);
     }
@@ -160,7 +209,38 @@ public final class LoopSlotMirror {
         }
     }
 
+    /**
+     * Copy each kept mirror's live data (relic XP and levels, research, durability, charges, ...)
+     * back into the loop's stored copy, so it survives the loop coming off. The mirror is what other
+     * mods tick and modify; without this the stored item never changed and every bit of progress made
+     * while worn in a loop was lost on unequip.
+     */
+    private static void writeBack(List<Kept> kept) {
+        Map<ItemStack, List<Kept>> byLoop = new java.util.IdentityHashMap<>();
+        for (Kept k : kept) byLoop.computeIfAbsent(k.want().loop(), x -> new ArrayList<>()).add(k);
+        byLoop.forEach((loop, entries) -> {
+            LoopContents data = loop.getOrDefault(ModDataComponents.LOOP_CONTENTS.get(), LoopContents.DEFAULT);
+            List<ItemStack> items = new ArrayList<>(data.items());
+            boolean dirty = false;
+            for (Kept k : entries) {
+                int i = k.want().index();
+                if (i >= items.size()) continue;
+                ItemStack live = k.mirror().copy();
+                live.remove(ModDataComponents.LOOP_MANAGED.get());
+                if (!ItemStack.isSameItemSameComponents(live, items.get(i)) || live.getCount() != items.get(i).getCount()) {
+                    items.set(i, live);
+                    dirty = true;
+                }
+            }
+            if (dirty) loop.set(ModDataComponents.LOOP_CONTENTS.get(), data.withItems(items));
+        });
+    }
+
     private static void reconcile(ServerPlayer player) {
+        reconcile(player, false);
+    }
+
+    private static void reconcile(ServerPlayer player, boolean writeBack) {
         ICuriosItemHandler handler = CuriosApi.getCuriosInventory(player).orElse(null);
         if (handler == null) return;
 
@@ -196,16 +276,18 @@ public final class LoopSlotMirror {
                 // on the next pass and mirror its own contents, spawning phantom copies.
                 if (contained.isEmpty() || contained.getItem() instanceof HungryLoopItem) continue;
                 wanted.computeIfAbsent(ContentForwarding.resolveSlot(contained, player), k -> new ArrayList<>())
-                        .add(new Want(contained, loopVisible && data.rendersItem(i)));
+                        .add(new Want(contained, loopVisible && data.rendersItem(i), worn.stack(), i));
             }
         }
 
         boolean[] changed = {false};
+        List<Kept> kept = new ArrayList<>();
         handler.getCurios().forEach((type, stacksHandler) -> {
-            if (mirrorInto(player, type, stacksHandler, wanted.getOrDefault(type, List.of()))) {
+            if (mirrorInto(player, type, stacksHandler, wanted.getOrDefault(type, List.of()), kept)) {
                 changed[0] = true;
             }
         });
+        if (writeBack || player.tickCount % WRITE_BACK_INTERVAL == 0) writeBack(kept);
 
         if (changed[0]) {
             if (player.containerMenu instanceof ICuriosMenu menu) {
@@ -255,7 +337,7 @@ public final class LoopSlotMirror {
      * every sync would wipe that state and make the slot flicker.
      */
     private static boolean mirrorInto(ServerPlayer player, String type, ICurioStacksHandler stacksHandler,
-                                      List<Want> desired) {
+                                      List<Want> desired, List<Kept> kept) {
         var stacks = stacksHandler.getStacks();
         int total = stacks.getSlots();
         boolean changed = false;
@@ -279,7 +361,9 @@ public final class LoopSlotMirror {
             if (!isMirror(cur)) continue;
             for (int w = 0; w < pending.size(); w++) {
                 if (ItemStack.isSameItem(cur, pending.get(w).stack())) {
-                    setRender(player, stacksHandler, type, firstMirror + p, pending.remove(w).render());
+                    Want want = pending.remove(w);
+                    kept.add(new Kept(cur, want));
+                    setRender(player, stacksHandler, type, firstMirror + p, want.render());
                     filled[p] = true;
                     break;
                 }

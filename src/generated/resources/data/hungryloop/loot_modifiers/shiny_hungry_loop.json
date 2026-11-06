@@ -1,7 +1,7 @@
 {
   "type": "hungryloop:shiny_loop",
-  "conditions": [],
   "chance": 0.06,
+  "conditions": [],
   "tables": [
     "minecraft:chests/simple_dungeon",
     "minecraft:chests/abandoned_mineshaft",

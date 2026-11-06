@@ -4,23 +4,37 @@
 # repo. But FML's mod discovery only scans run/mods and jar-in-jar, so the dev CLIENT still needs
 # the real jars on disk. Versions here must match gradle.properties.
 #
-# Usage:  pwsh -File scripts/fetch-testmods.ps1
+# Usage:  pwsh -File scripts/fetch-testmods.ps1                      (dev client, run/mods)
+#         pwsh -File scripts/fetch-testmods.ps1 -Dest run-gametest/mods -Headless
+#           (GameTest server / CI: skips client-only mods)
+
+param(
+    [string]$Dest = (Join-Path $PSScriptRoot '..\run\mods'),
+    [switch]$Headless
+)
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
-$mods = Join-Path $PSScriptRoot '..\run\mods'
+$mods = $Dest
 New-Item -ItemType Directory -Force -Path $mods | Out-Null
 
 # Modrinth CDN direct links (project / version). Keep in sync with gradle.properties.
 $files = @{
-    'curios-neoforge-9.5.1+1.21.1.jar'   = 'https://cdn.modrinth.com/data/vvuO3ImH/versions/wLh5wDfd/curios-neoforge-9.5.1%2B1.21.1.jar'
+    'curios-neoforge-9.5.1+1.21.1.jar'   = 'https://cdn.modrinth.com/data/vvuO3ImH/versions/yohfFbgD/curios-neoforge-9.5.1%2B1.21.1.jar'
     'relics-1.21.1-0.12.8.jar'            = 'https://cdn.modrinth.com/data/OCJRPujW/versions/WKEe9sPL/relics-1.21.1-0.12.8.jar'
     'artifacts-neoforge-13.2.5.jar'       = 'https://cdn.modrinth.com/data/P0Mu4wcQ/versions/lMfuK0o7/artifacts-neoforge-13.2.5.jar'
     'OctoLib-NEOFORGE-0.6.2+1.21.jar'     = 'https://cdn.modrinth.com/data/RH2KUdKJ/versions/yVCCi6TK/OctoLib-NEOFORGE-0.6.2%2B1.21.jar'
-    'ImmersiveUI-NEOFORGE-0.3.3+1.21.1.jar' = 'https://cdn.modrinth.com/data/9wv7LuMc/versions/wtmSnIFo/ImmersiveUI-NEOFORGE-0.3.3%2B1.21.1.jar'
+    'architectury-13.0.11-neoforge.jar'   = 'https://cdn.modrinth.com/data/lhGA9TYQ/versions/1IiqEQGl/architectury-13.0.11-neoforge.jar' # OctoLib needs it
+    'ImmersiveUI-NEOFORGE-0.3.3+1.21.1.jar' ='https://cdn.modrinth.com/data/9wv7LuMc/versions/wtmSnIFo/ImmersiveUI-NEOFORGE-0.3.3%2B1.21.1.jar'
 }
 
-foreach ($name in $files.Keys) {
+# Client-only (UI) mods are pointless on the headless GameTest server.
+if ($Headless) { $files.Remove('ImmersiveUI-NEOFORGE-0.3.3+1.21.1.jar') }
+
+# Client-only (UI) mods are pointless on the headless GameTest server.
+if ($Headless) { $files.Remove('ImmersiveUI-NEOFORGE-0.3.3+1.21.1.jar') }
+
+foreach ($name in @($files.Keys)) {
     $dst = Join-Path $mods $name
     if (Test-Path $dst) { Write-Host "have  $name"; continue }
     Write-Host "get   $name"

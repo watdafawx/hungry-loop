@@ -49,8 +49,19 @@ neoForge {
             gameDirectory = file('run-server')
             programArgument '--nogui'
         }
+        // Headless server-side regression suite (gametest.LoopGameTests) on a real dedicated server:
+        // mirrors, grants, write-back, overflow. No GPU needed - CI runs this on every push.
+        // run-gametest/mods needs the test mods (scripts/fetch-testmods.ps1 -Dest run-gametest/mods).
+        gameTestServer {
+            type = "gameTestServer"
+            gameDirectory = file('run-gametest')
+            systemProperty 'neoforge.enabledGameTestNamespaces', mod_id
+        }
         data {
             data()
+            // Own game dir with only Curios in mods/: the data run fires every loaded mod's
+            // GatherDataEvent, and other mods' dev-only providers crash outside their own workspace.
+            gameDirectory = file('run-data')
             programArguments.addAll '--mod', mod_id,
                     '--all',
                     '--output', file('src/generated/resources/').absolutePath,

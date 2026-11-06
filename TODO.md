@@ -37,7 +37,7 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started · `[?]` needs a de
       `CuriosApi.getItemStackSlots`, preferring a specific type over generic `curio`
 - [x] Sub-slot validation — menu slots accept any stack with a Curios capability except another loop
 - [x] Duplicates allowed (per the design call — N rings in one loop is fine)
-- [ ] Drop-on-shrink safety (if a slot count ever decreases — not possible yet, XP only grows it)
+- [x] Drop-on-shrink safety: contents past capacity are ejected to the inventory (or dropped if it is full), never deleted — `curio.LoopOverflow`, every 20 ticks, worn + inventory loops
 - [ ] Resolve-once and cache the slot type on the sub-slot? (currently recomputed each tick — fine
       for now, revisit if it shows up in a profile)
 
@@ -139,7 +139,7 @@ So the loop **grants real Curios slots** and mirrors its contents into them.
       enter, so mid-move looked like an unequip).
 - [x] Contents beyond capacity (lowered cap, loot/commands) were hidden in the loop screen yet still
       equipped, and the next edit deleted them — the screen now shows them take-only.
-- [ ] **Capacity policy**: when contents exceed capacity, keep them take-only (current) or eject?
+- [x] **Capacity policy: eject.** Decided 2026-11-06. Same path as the shrink guard; SelfTest `overflow` + GameTest `overflowIsEjectedNotLost` (mutation-tested).
 - [x] **Affixed items mirror into the slot Apotheosis reads.** ApothicAttributes' `CurioEquipmentSlot`
       reads a category's affix stacks from exactly one Curios handler, and apothic_compats assigns
       categories by curio tag — so wildcards tagged `curios:curio` (valid in every type) only fire
@@ -156,8 +156,13 @@ So the loop **grants real Curios slots** and mirrors its contents into them.
 - [x] Right-click equip swapping with a mirror: not reachable — Curios swaps with the first
       extractable slot and base slots always precede granted ones. SelfTest `rightclick-swap` forces
       the swap path (every slot full) as a guard.
-- [ ] Verify each: Apotheosis affix abilities, Relics abilities, Artifacts abilities all fire from
-      a loop-held item
+- [x] Verify Relics / Artifacts see loop items through their own equipped lookups
+      (`EntityUtils.findEquippedCurio`, `EquipmentHelper.iterateEquipment` - what their abilities run on),
+      SelfTest `abilities`, both Curios and Accessories paths. Apotheosis affixes: parity scenarios.
+- [x] **Mirror write-back.** Mirrors are what other mods tick and level; their data was never copied
+      back, so relic XP/levels/research (and durability, charges) made while worn were lost on unequip.
+      `LoopSlotMirror.writeBack` copies changed mirrors into the stored items every 40 ticks and before the
+      loop menu opens. SelfTest `writeback` + GameTest `relicProgressWrittenBackOnUnequip` (mutation-tested).
 - [x] Contained cosmetics render on the body (the mirrors are really equipped). Per-item + master
       render toggle in the loop screen (`LoopContents.renderMask` / `selfRenders` → the granted
       slot's Curios render flag, synced with `SPacketSyncRender`). Hiding the loop's own Curios
@@ -229,10 +234,12 @@ So the loop **grants real Curios slots** and mirrors its contents into them.
       component on every change and on close
 - [ ] Right-click on the loop inside a **non-player** container (a chest) currently just swallows
       the click — decide whether to support that or fall through
-- [ ] Open **as an overlay** — without closing the current screen (push a screen that renders the
-      parent behind it, or a widget layer)
+- [x] Open **as an overlay** (`client.LoopOverlay`): from the inventory, creative, Curios or Accessories
+      screen the parent stays drawn (dimmed) behind the loop, and closing returns to it. Curios/Accessories
+      are server menus the server closes first, so a just-closed parent is adopted within 20 ticks.
+      SelfTest `overlay`.
 - [ ] Keybind under a "The Hungry Loop" category + a C→S open packet (open without a GUI already up)
-- [ ] Slot rendering shows each sub-slot's resolved type (ring/amulet/etc. background icon)
+- [x] Each contained item's tooltip in the loop screen says "Acts as: <slot>" (empty slots have no type; a filled one is covered by its item)
 - [x] Rich tooltip: custom `ClientTooltipComponent` — a card per contained item (its **icon** +
       its own tooltip: affixes, attributes, gem sockets), 3 cards/page; scroll over the loop in a
       GUI to page. Apotheosis `SOCKET_MARKER` filtered → real per-socket lines (`ApothTooltip`).
@@ -258,7 +265,7 @@ So the loop **grants real Curios slots** and mirrors its contents into them.
 - [x] Shiny loot loops roll 6–8 base slots ("double slots unlocked"), `shiny=true`, loot-only
 - [x] Shiny = slots only for v1 (no quality bonus)
 - [ ] Weight the base-slot roll toward 6; tune the chance and table list per pack
-- [ ] Datagen the loot-modifier + recipe instead of hand-written JSON
+- [x] Datagen (`datagen.HungryLoopDataGen`, `build.bat runData`, own `run-data/` with only Curios): recipe, loot modifier, `curios:loop` tag, item model. Lang + Curios slot/entity JSON stay hand-written. CI fails if `src/generated` drifts.
 - [ ] Loot tables via datagen
 
 ## Phase 8 — Test command
@@ -303,6 +310,13 @@ So the loop **grants real Curios slots** and mirrors its contents into them.
       singleplayer & dedicated, and client-only-on-server where it matters
 
 ---
+
+## Ideas for later
+
+- [ ] Animated item sprite that sells the "hungry" idea (the loop's maw chewing / pulsing).
+      Draft static 32×32 + shiny variant in `art/drafts/` (not wired in yet).
+- [ ] Physical 3D model rendered on the player in third person (Curios/Accessories render layer),
+      maybe first person too if it reads well.
 
 ## Open design questions (tracked in DESIGN.md)
 

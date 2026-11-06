@@ -9,6 +9,9 @@
     "AccessoriesMenuLayoutMixin",
     "AccessoriesExperimentalMenuMixin"
   ],
+  "client": [
+    "AccessoriesGroupTabsMixin"
+  ],
   "injectors": {
     "defaultRequire": 1
   }

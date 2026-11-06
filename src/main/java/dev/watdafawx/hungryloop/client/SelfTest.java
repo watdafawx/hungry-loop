@@ -12,6 +12,7 @@ import dev.watdafawx.hungryloop.ModItems;
 import dev.watdafawx.hungryloop.menu.HungryLoopMenu;
 import dev.watdafawx.hungryloop.net.OpenLoopPayload;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.Screenshot;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.server.IntegratedServer;
@@ -29,6 +30,7 @@ import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.LevelSettings;
@@ -51,6 +53,9 @@ import top.theillusivec4.curios.common.inventory.container.CuriosContainer;
 import top.theillusivec4.curios.common.network.client.CPacketOpenCurios;
 import top.theillusivec4.curios.common.network.client.CPacketPage;
 import dev.watdafawx.hungryloop.integration.accessories.AccessoriesTestHooks;
+import dev.watdafawx.hungryloop.integration.artifacts.ArtifactsTestHooks;
+import dev.watdafawx.hungryloop.integration.relics.RelicsTestHooks;
+import dev.watdafawx.hungryloop.integration.relics.RelicsUnlock;
 import top.theillusivec4.curios.common.network.client.CPacketToggleRender;
 
 import java.io.IOException;
@@ -221,6 +226,13 @@ public final class SelfTest {
                     suite.addAll(accessoriesEquipWhileOpenScenario(items, experimental));
                     suite.addAll(accessoriesClickScenario(items, experimental));
                 }
+                suite.addAll(abilityScenarios());
+                if (wants("overflow")) suite.addAll(overflowScenario(items));
+                if (wants("overlay")) {
+                    suite.addAll(overlayScenario("overlay-inventory", SelfTest::openInventoryInto, s -> s instanceof InventoryScreen));
+                    suite.addAll(overlayScenario("overlay-accessories", seq -> openAccessoriesInto(seq, false),
+                            s -> AccessoriesTestHooks.isScreen(s, false)));
+                }
                 // Screen-free: item worn directly vs in the loop, every attribute compared. Under the
                 // compat layer slot names are Accessories' (head->hat, feet->shoes, curio->any, ...)
                 // and wildcards no longer list "curio" - this is what proves affixes still fire.
@@ -247,6 +259,11 @@ public final class SelfTest {
                 suite.addAll(reopenScenario("reopen-mixed", null, false));
             }
             if (wants("moves")) suite.addAll(provisionedMoves(items));
+            suite.addAll(abilityScenarios());
+            if (wants("overlay")) {
+                suite.addAll(overlayScenario("overlay-inventory", SelfTest::openInventoryInto, s -> s instanceof InventoryScreen));
+                suite.addAll(overlayScenario("overlay-curios", SelfTest::openCuriosInto, s -> s instanceof CuriosScreen));
+            }
             if (wants("nested")) suite.addAll(nestedLoopScenario(items));
             if (wants("twoloops")) suite.addAll(twoLoopsScenario(items));
             if (wants("overflow")) suite.addAll(overflowScenario(items));
@@ -434,6 +451,174 @@ public final class SelfTest {
             return true;
         });
         return seq;
+    }
+
+    // --- overlay ----------------------------------------------------------------------------------
+
+    private static void openInventoryInto(List<BooleanSupplier> seq) {
+        seq.add(() -> {
+            Minecraft.getInstance().setScreen(new InventoryScreen(Minecraft.getInstance().player));
+            return true;
+        });
+        seq.add(waitUntil(() -> Minecraft.getInstance().screen instanceof InventoryScreen, 40, "inventory never opened"));
+    }
+
+    /**
+     * Opening the loop from an inventory-type screen keeps that screen as the backdrop, and closing
+     * the loop returns to it (instead of dropping to the game).
+     */
+    private static List<BooleanSupplier> overlayScenario(String name, java.util.function.Consumer<List<BooleanSupplier>> openParent,
+                                                         java.util.function.Predicate<net.minecraft.client.gui.screens.Screen> isParent) {
+        List<BooleanSupplier> seq = new ArrayList<>();
+        seq.add(provision(name, List.of(loopOf(4, new Item[0]))));
+        waitTicks(seq, SETTLE);
+        openParent.accept(seq);
+        waitTicks(seq, 10);
+        seq.add(() -> {
+            PacketDistributor.sendToServer(new OpenLoopPayload());
+            return true;
+        });
+        seq.add(waitUntil(() -> Minecraft.getInstance().screen instanceof HungryLoopScreen, 100, "loop screen never opened"));
+        waitTicks(seq, 10);
+        List<String> fails = new ArrayList<>();
+        seq.add(() -> {
+            if (!LoopOverlay.hasParent()) fails.add("loop screen opened from " + name + " has no backdrop parent");
+            screenshot(name);
+            Minecraft.getInstance().screen.onClose();
+            return true;
+        });
+        seq.add(waitUntil(() -> isParent.test(Minecraft.getInstance().screen), 100, name + ": closing the loop didn't return to the parent screen"));
+        waitTicks(seq, 10);
+        seq.add(() -> {
+            if (!isParent.test(Minecraft.getInstance().screen)) fails.add("closing the loop left screen " + Minecraft.getInstance().screen);
+            fails.addAll(ghostDiff());
+            record(name, fails);
+            Minecraft.getInstance().player.closeContainer();
+            return true;
+        });
+        return seq;
+    }
+
+    // --- abilities & write-back (screen-free, both paths) ------------------------------------------
+
+    private static List<BooleanSupplier> abilityScenarios() {
+        List<BooleanSupplier> seq = new ArrayList<>();
+        if (wants("abilities")) {
+            if (ModList.get().isLoaded("relics")) {
+                for (Item item : RelicsTestHooks.relicItems(3)) {
+                    seq.addAll(lookupScenario("relics", item, p -> RelicsTestHooks.relicsSeesEquipped(p, item)));
+                }
+            }
+            if (ModList.get().isLoaded("artifacts")) {
+                for (Item item : ArtifactsTestHooks.artifactItems(3)) {
+                    seq.addAll(lookupScenario("artifacts", item, p -> ArtifactsTestHooks.artifactsSeesEquipped(p, item)));
+                }
+            }
+        }
+        if (wants("writeback") && ModList.get().isLoaded("relics")) {
+            List<Item> relics = RelicsTestHooks.relicItems(1);
+            if (!relics.isEmpty()) seq.addAll(writeBackScenario(relics.get(0)));
+        }
+        return seq;
+    }
+
+    /**
+     * The mod's own "is this equipped" lookup - the one its abilities run through - must find the
+     * item in the loop. Worn directly first as the control: if the lookup misses that, the oracle is
+     * broken, not the loop.
+     */
+    private static List<BooleanSupplier> lookupScenario(String mod, Item item, Function<ServerPlayer, Boolean> sees) {
+        String name = "ability-" + mod + "-" + BuiltInRegistries.ITEM.getKey(item).getPath();
+        List<BooleanSupplier> seq = new ArrayList<>();
+        seq.add(provision(name + " (direct)", List.of()));
+        seq.add(() -> {
+            onServer(p -> {
+                wearDirectly(p, List.of(item));
+                return null;
+            });
+            return true;
+        });
+        waitTicks(seq, SETTLE);
+        boolean[] control = {false};
+        seq.add(() -> {
+            control[0] = onServer(sees);
+            return true;
+        });
+        seq.add(provision(name + " (in loop)", List.of(loopOf(4, item))));
+        waitTicks(seq, SETTLE);
+        seq.add(() -> {
+            if (!control[0]) {
+                // Not wearable here at all (e.g. a hand-held relic Accessories' compat layer gives no
+                // slot) - nothing for the loop to match, so not a loop failure.
+                log("SKIP " + name + " (" + mod + " doesn't see it even worn directly)");
+                return true;
+            }
+            List<String> fails = new ArrayList<>();
+            if (!onServer(sees)) fails.add(mod + " doesn't see " + item + " in the loop - its abilities won't run");
+            record(name, fails);
+            return true;
+        });
+        return seq;
+    }
+
+    /**
+     * Progress made on a worn item lives on its mirror (that is what Relics ticks and levels). It must
+     * be copied back into the loop's stored item, or it is gone the moment the loop comes off.
+     * Unlocks the mirror relic, waits past the write-back interval, takes the loop off, and requires
+     * the stored relic to be unlocked.
+     */
+    private static List<BooleanSupplier> writeBackScenario(Item relic) {
+        String name = "writeback-relic";
+        List<BooleanSupplier> seq = new ArrayList<>();
+        seq.add(provision(name, List.of(loopOf(4, relic))));
+        waitTicks(seq, SETTLE);
+        List<String> fails = new ArrayList<>();
+        seq.add(() -> {
+            onServer(p -> {
+                ItemStack loop = CuriosApi.getCuriosInventory(p).flatMap(h -> h.findFirstCurio(
+                        s -> s.getItem() instanceof HungryLoopItem && !LoopSlotMirror.isMirror(s))).map(SlotResult::stack).orElse(ItemStack.EMPTY);
+                ItemStack stored = storedFirst(loop);
+                if (stored.isEmpty() || RelicsTestHooks.isUnlocked(p, stored)) {
+                    fails.add("precondition: stored relic missing or already unlocked");
+                }
+                ItemStack mirror = CuriosApi.getCuriosInventory(p).flatMap(h -> h.findFirstCurio(
+                        s -> LoopSlotMirror.isMirror(s) && s.is(relic))).map(SlotResult::stack).orElse(ItemStack.EMPTY);
+                if (mirror.isEmpty()) fails.add("no mirror of " + relic + " to progress");
+                else RelicsUnlock.unlockAll(p, mirror);
+                return null;
+            });
+            return true;
+        });
+        waitTicks(seq, 70); // past LoopSlotMirror's 40-tick write-back interval
+        seq.add(() -> {
+            onServer(p -> {
+                CuriosApi.getCuriosInventory(p).ifPresent(h -> {
+                    ItemStack loop = h.getStacksHandler(LOOP).map(sh -> sh.getStacks().getStackInSlot(0).copy()).orElse(ItemStack.EMPTY);
+                    h.setEquippedCurio(LOOP, 0, ItemStack.EMPTY);
+                    p.getInventory().setItem(9, loop);
+                });
+                return null;
+            });
+            return true;
+        });
+        waitTicks(seq, SETTLE);
+        seq.add(() -> {
+            onServer(p -> {
+                ItemStack stored = storedFirst(p.getInventory().getItem(9));
+                if (stored.isEmpty()) fails.add("loop or its relic missing after taking it off");
+                else if (!RelicsTestHooks.isUnlocked(p, stored)) fails.add("relic progress made while worn was lost on unequip (stored copy still locked)");
+                if (Snap.of(p).mirrors != 0) fails.add("mirrors left after unequip: " + Snap.of(p).mirrors);
+                return null;
+            });
+            record(name, fails);
+            return true;
+        });
+        return seq;
+    }
+
+    private static ItemStack storedFirst(ItemStack loop) {
+        var items = loop.getOrDefault(ModDataComponents.LOOP_CONTENTS.get(), LoopContents.DEFAULT).items();
+        return items.isEmpty() ? ItemStack.EMPTY : items.get(0);
     }
 
     // --- Accessories (with its Curios compat layer) ----------------------------------------------
@@ -936,80 +1121,86 @@ public final class SelfTest {
     }
 
     /**
-     * Contents past capacity (6 items, 4 slots): all six stay equipped, the loop screen shows all six,
-     * an overflow item can be taken out, and nothing can be put back past capacity.
+     * Contents past capacity (6 items, 4 slots) are handed back, never kept or deleted: a worn loop
+     * keeps 4 (all mirrored) and the 2 extras land in the inventory; same for a loop sitting in the
+     * inventory; with the inventory full they drop at the player's feet. Conservation is the oracle.
      */
     private static List<BooleanSupplier> overflowScenario(List<Item> items) {
         List<BooleanSupplier> seq = new ArrayList<>();
-        seq.add(provision("overflow", List.of(loopOf(4, items.subList(0, 6).toArray(Item[]::new)))));
-        openCuriosInto(seq);
-        waitTicks(seq, SETTLE);
+        Item[] six = items.subList(0, 6).toArray(Item[]::new);
+
+        seq.add(provision("overflow-worn", List.of(loopOf(4, six))));
+        waitTicks(seq, SETTLE * 2);
         seq.add(() -> {
-            capture(0, 6);
-            queueFront(List.of(checkStep("overflow-equipped")));
+            List<String> fails = new ArrayList<>(ghostDiff());
+            onServer(p -> {
+                int inLoop = wornLoopItemCount(p);
+                if (inLoop != 4) fails.add("worn loop holds " + inLoop + " after eject, expected 4");
+                if (Snap.of(p).mirrors != 4) fails.add("mirrors " + Snap.of(p).mirrors + ", expected 4");
+                for (Item extra : List.of(six[4], six[5])) {
+                    if (countInInventory(p, extra) != 1) fails.add(extra + " not ejected into the inventory");
+                }
+                fails.addAll(Snap.of(p).invariantFails);
+                return null;
+            });
+            record("overflow-worn", fails);
             return true;
         });
+
+        seq.add(provision("overflow-inventory", List.of()));
         seq.add(() -> {
-            Minecraft.getInstance().player.closeContainer();
-            PacketDistributor.sendToServer(new OpenLoopPayload());
+            onServer(p -> {
+                p.getInventory().setItem(9, loopOf(4, six));
+                return null;
+            });
             return true;
         });
-        seq.add(waitUntil(() -> Minecraft.getInstance().screen instanceof HungryLoopScreen, 100, "loop screen never opened"));
-        waitTicks(seq, 15);
+        waitTicks(seq, SETTLE * 2);
         seq.add(() -> {
             List<String> fails = new ArrayList<>();
-            int shown = 0;
-            for (Slot slot : loopMenuSlots()) if (slot.isActive() && slot.hasItem()) shown++;
-            if (shown != 6) fails.add("loop screen shows " + shown + " filled slots, contents hold 6");
-            record("overflow-visible", fails);
-            screenshot("overflow-visible");
-            Slot overflow = loopMenuSlots().get(5);
-            click(overflow);
+            onServer(p -> {
+                int inLoop = p.getInventory().getItem(9).getOrDefault(ModDataComponents.LOOP_CONTENTS.get(), LoopContents.DEFAULT).items().size();
+                if (inLoop != 4) fails.add("inventory loop holds " + inLoop + " after eject, expected 4");
+                for (Item extra : List.of(six[4], six[5])) {
+                    if (countInInventory(p, extra) != 1) fails.add(extra + " not ejected into the inventory");
+                }
+                return null;
+            });
+            record("overflow-inventory", fails);
             return true;
         });
-        waitTicks(seq, 5);
+
+        seq.add(provision("overflow-full-inventory", List.of(loopOf(4, six))));
         seq.add(() -> {
-            click(firstEmptyPlayerSlot()); // drop the taken overflow item into the inventory
+            onServer(p -> {
+                for (int i = 0; i < 36; i++) p.getInventory().setItem(i, new ItemStack(Items.DIRT, 64));
+                return null;
+            });
             return true;
         });
-        waitTicks(seq, SETTLE);
-        seq.add(() -> {
-            List<String> fails = new ArrayList<>();
-            int inLoop = onServer(SelfTest::wornLoopItemCount);
-            int mirrors = onServer(p -> countMirrors(p));
-            if (inLoop != 5) fails.add("after taking an overflow item the loop holds " + inLoop + ", expected 5");
-            if (mirrors != 5) fails.add("mirrors " + mirrors + " after taking an overflow item, expected 5");
-            fails.addAll(ghostDiff());
-            record("overflow-take", fails);
-            screenshot("overflow-take");
-            // now try to put it back past capacity: pick it up from the inventory, click overflow slot 5
-            click(playerSlotHolding(items.get(5)));
-            return true;
-        });
-        waitTicks(seq, 5);
-        seq.add(() -> {
-            click(loopMenuSlots().get(5));
-            return true;
-        });
-        waitTicks(seq, 5);
-        seq.add(() -> {
-            if (!Minecraft.getInstance().player.containerMenu.getCarried().isEmpty()) {
-                click(firstEmptyPlayerSlot()); // rejected placement leaves it on the cursor - put it away
-            }
-            return true;
-        });
-        waitTicks(seq, SETTLE);
+        waitTicks(seq, SETTLE * 2);
         seq.add(() -> {
             List<String> fails = new ArrayList<>();
-            int inLoop = onServer(SelfTest::wornLoopItemCount);
-            if (inLoop != 5) fails.add("placing into a slot past capacity was accepted: loop holds " + inLoop);
-            fails.addAll(ghostDiff());
-            record("overflow-no-refill", fails);
-            screenshot("overflow-no-refill");
-            Minecraft.getInstance().player.closeContainer();
+            onServer(p -> {
+                for (Item extra : List.of(six[4], six[5])) {
+                    long dropped = p.level().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,
+                            p.getBoundingBox().inflate(6), e -> e.getItem().is(extra)).size();
+                    if (dropped < 1) fails.add(extra + " neither in the full inventory nor dropped - lost");
+                }
+                p.level().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, p.getBoundingBox().inflate(6))
+                        .forEach(e -> e.discard());
+                return null;
+            });
+            record("overflow-full-inventory", fails);
             return true;
         });
         return seq;
+    }
+
+    private static int countInInventory(ServerPlayer p, Item item) {
+        int n = 0;
+        for (int i = 0; i < p.getInventory().getContainerSize(); i++) if (p.getInventory().getItem(i).is(item)) n += p.getInventory().getItem(i).getCount();
+        return n;
     }
 
     /**

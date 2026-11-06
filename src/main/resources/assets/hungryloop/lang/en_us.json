@@ -35,5 +35,6 @@
 
   "commands.hungryloop.gen.success": "Generated %s curio item(s).",
   "commands.hungryloop.gen.no_curios": "No curio items are registered.",
-  "commands.hungryloop.give.success": "Gave a Hungry Loop with %s slots."
+  "commands.hungryloop.give.success": "Gave a Hungry Loop with %s slots.",
+  "hungryloop.tooltip.acts_as": "Acts as: %s"
 }

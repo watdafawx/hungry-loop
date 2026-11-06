@@ -1,0 +1,59 @@
+name: CI
+
+# Build + server-side regression suite on every push and PR. The GameTests (gametest.LoopGameTests)
+# run on a real dedicated server with Curios, Relics and Artifacts - mirrors, slot grants, unequip,
+# overflow eject, relic write-back. The client UI suite (client.SelfTest) needs a GPU and stays local.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build
+        run: |
+          chmod +x ./gradlew
+          ./gradlew build --no-daemon
+
+      - name: Fetch test mods
+        shell: pwsh
+        run: ./scripts/fetch-testmods.ps1 -Dest run-gametest/mods -Headless
+
+      - name: GameTests (dedicated server)
+        run: |
+          set -o pipefail
+          ./gradlew runGameTestServer --no-daemon 2>&1 | tee gametest.log
+          # A server that fails to load mods can exit 0 without running anything - require the
+          # explicit all-passed line.
+          grep -E "All [0-9]+ required tests passed" gametest.log
+
+      - name: Datagen is up to date
+        shell: bash
+        run: |
+          mkdir -p run-data/mods
+          cp run-gametest/mods/curios-neoforge-*.jar run-data/mods/
+          ./gradlew runData --no-daemon
+          # .cache holds hashes only; the generated files themselves must match what's committed.
+          git status --porcelain -- src/generated ':!src/generated/resources/.cache'
+          git diff --exit-code -- src/generated ':!src/generated/resources/.cache'
+          test -z "$(git status --porcelain -- src/generated ':!src/generated/resources/.cache')"
+
+      - name: Upload log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gametest-log
+          path: gametest.log

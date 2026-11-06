@@ -44,10 +44,15 @@ public class ShinyLoopModifier extends LootModifier {
     private final float chance;
     private final Set<ResourceLocation> tables;
 
+    /** For datagen. */
+    public static ShinyLoopModifier of(float chance, List<ResourceLocation> tables) {
+        return new ShinyLoopModifier(new LootItemCondition[0], chance, tables);
+    }
+
     protected ShinyLoopModifier(LootItemCondition[] conditions, float chance, List<ResourceLocation> tables) {
         super(conditions);
         this.chance = chance;
-        this.tables = Set.copyOf(tables);
+        this.tables = new java.util.LinkedHashSet<>(tables); // ordered: datagen output stays stable
     }
 
     @Override

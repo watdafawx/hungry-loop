@@ -64,6 +64,16 @@ installed in `run/mods/`, so the dev client runs the Accessories path (SelfTest 
 parity scenarios). Move them to `run/mods-off/` to test the plain Curios path (the full Curios
 suite). Test both before claiming a UI or sync fix.
 
+**Server-side tests (GameTests).** `build.bat runGameTestServer` runs `gametest.LoopGameTests` on a
+real dedicated server in `run-gametest/` (fill its mods with
+`pwsh scripts/fetch-testmods.ps1 -Dest run-gametest/mods -Headless`). A fake player is ticked by
+hand - wrap each `doTick()` in `EventHooks.fireEntityTickPre/Post`, or Curios never ticks. CI
+(`.github/workflows/ci.yml`) runs these plus a datagen drift check on every push. A server that fails
+to load mods exits 0, so CI greps for the "All N required tests passed" line.
+
+**Datagen.** `build.bat runData` (game dir `run-data/`, only Curios in its mods - other mods' dev-only
+providers crash there) writes `src/generated/resources`. Commit the result.
+
 **Multi-page Curios panel.** The dev world has few slot types, so the Curios panel is one page.
 Packs with many types paginate, and the ghost-slot bug only showed there. Set
 `maxSlotsPerPage = 12` in `run/defaultconfigs/curios-server.toml` and `run/config/curios-server.toml`

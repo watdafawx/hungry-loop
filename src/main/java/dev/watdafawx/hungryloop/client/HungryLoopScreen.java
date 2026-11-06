@@ -210,6 +210,29 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
     }
 
     @Override
+    public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        if (LoopOverlay.hasParent()) {
+            LoopOverlay.renderBackdrop(g, partialTick);
+            // AbstractContainerScreen.renderBackground is also what draws the panel - keep that.
+            renderBg(g, partialTick, mouseX, mouseY);
+        } else {
+            super.renderBackground(g, mouseX, mouseY, partialTick);
+        }
+    }
+
+    @Override
+    public void resize(net.minecraft.client.Minecraft mc, int width, int height) {
+        LoopOverlay.resize(mc, width, height);
+        super.resize(mc, width, height);
+    }
+
+    @Override
+    public void onClose() {
+        super.onClose();
+        LoopOverlay.returnToParent();
+    }
+
+    @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         super.render(g, mouseX, mouseY, partialTick); // renders bg + slots (not tooltips)
         renderPlayerPreview(g, mouseX, mouseY);
@@ -259,6 +282,26 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
             return;
         }
         super.renderTooltip(g, mouseX, mouseY);
+    }
+
+    /**
+     * A contained item's tooltip says which slot it counts as while the loop is worn. Empty slots have
+     * no type (it comes from the item put in them), and a filled slot is covered by its item, so the
+     * tooltip is the one place this is always both visible and true. Uses the same resolution as the
+     * mirror, and Curios' own slot names.
+     */
+    @Override
+    protected List<Component> getTooltipFromContainerItem(net.minecraft.world.item.ItemStack stack) {
+        List<Component> lines = super.getTooltipFromContainerItem(stack);
+        if (hoveredSlot == null || hoveredSlot.index >= HungryLoopMenu.MAX_LOOP_SLOTS || minecraft == null
+                || minecraft.player == null || stack.getItem() instanceof dev.watdafawx.hungryloop.item.HungryLoopItem) {
+            return lines;
+        }
+        String type = dev.watdafawx.hungryloop.curio.ContentForwarding.resolveSlot(stack, minecraft.player);
+        List<Component> out = new java.util.ArrayList<>(lines);
+        out.add(1, Component.translatable("hungryloop.tooltip.acts_as",
+                Component.translatable("curios.identifier." + type)).withStyle(ChatFormatting.DARK_AQUA));
+        return out;
     }
 
     // --- drawing helpers --------------------------------------------------------------------

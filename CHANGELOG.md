@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.0
+
+- Progress made on items while they are in a worn loop (Relics XP, levels and research, durability, charges) is now kept when the loop comes off. Before, it was lost on unequip.
+- Items past a loop's capacity are handed back to your inventory (or dropped at your feet if it is full) instead of staying stuck in the loop.
+- The loop screen opens on top of the inventory, Curios or Accessories screen you opened it from, and closing it takes you back there.
+- Items in the loop screen show which slot they count as ("Acts as: Ring").
+- Accessories' original screen: group tabs no longer jump to the wrong row while a loop is worn.
+
 ## 0.6.6
 
 - The Curios panel no longer rebuilds itself every few seconds when it has more than one page (packs with many slot types) and Relics are worn, so hover animations stop restarting.
