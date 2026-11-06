@@ -8,7 +8,8 @@
     "CuriosPanelLayoutMixin"
   ],
   "client": [
-    "CuriosModifiersSyncMixin"
+    "CuriosModifiersSyncMixin",
+    "PlayerHandLoopMixin"
   ],
   "injectors": {
     "defaultRequire": 1

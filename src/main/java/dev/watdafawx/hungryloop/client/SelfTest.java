@@ -538,7 +538,7 @@ public final class SelfTest {
         ItemStack worn = new ItemStack(ModItems.HUNGRY_LOOP.get());
         worn.set(ModDataComponents.LOOP_CONTENTS.get(), new LoopContents(4, 0, 0, shiny, 0,
                 List.of(), LoopContents.ALL_RENDER, true));
-        seq.add(provision(name, List.of(worn)));
+        seq.add(provision(name, List.of(worn, worn.copy()))); // two loops: one coils each arm
         seq.add(() -> {
             onServer(p -> {
                 for (int i = 0; i < 3; i++) p.getInventory().setItem(i, worn.copy()); // hotbar sprites

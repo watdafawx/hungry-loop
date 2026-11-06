@@ -320,7 +320,21 @@ So the loop **grants real Curios slots** and mirrors its contents into them.
       (model override, datagen). Frames generated from `art/drafts/hungry_loop_32.png`.
 - [x] The worn loop on the main hand: third person via a Curios renderer (`LoopCurioRenderer`), first
       person on the empty-hand arm via `RenderArmEvent` (`LoopFirstPerson`, smaller). Both respect the
-      master eye. SelfTest `body` screenshots. Still the flat sprite, not a sculpted 3D model.
+      master eye. SelfTest `body` screenshots.
+- [x] 3D coil instead of the flat sprite (`client.LoopCoil`, built in code to hug the arm box, wide and
+      slim arms): a copper serpent from the wrist up the forearm, pearl head at the hand, tapering tail,
+      pulsing pearl; aqua for shiny. Loop slot 0 coils the main arm, slot 1 the other.
+      Third person: Curios renderer. First person: `mixin.PlayerHandLoopMixin` draws it inside vanilla's
+      `renderHand` right after the arm part, with that exact pose - so it also follows Punchy's arm
+      animations. Punchy needs no code of ours (nothing to guard); verified with and without it.
+      First person uses a lighter shape (slim band, ~1 turn at the wrist, small head). The path is a
+      rounded square around the arm box + sleeve, not a circle - a circle tight enough for the flat
+      sides cut through the corners (clipped into the hand).
+- [ ] SelfTest `parity` is occasionally flaky: the "best direct placement" reference can pick a
+      different slot between runs (seen once on whoopee_cushion: feet vs curio). Make the oracle
+      deterministic (fixed affix seed / compare against the loop's chosen type only).
+- [ ] Punchy model-parts definition for a held loop (3D in hand) - optional resource under
+      `assets/hungryloop/punchy/`, inert without Punchy.
 
 ## Open design questions (tracked in DESIGN.md)
 
