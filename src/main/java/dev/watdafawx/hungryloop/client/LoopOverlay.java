@@ -42,13 +42,22 @@ public final class LoopOverlay {
     private static long lastClosedAt;
     private static final long ADOPT_WINDOW = 20;
 
+    /** When a loop screen last closed; a loop screen opening right after is a tab switch, keeping the parent. */
+    private static long loopClosedAt = Long.MIN_VALUE / 2;
+
     private LoopOverlay() {}
 
     @SubscribeEvent
     static void onOpening(ScreenEvent.Opening event) {
         if (event.getNewScreen() instanceof HungryLoopScreen) {
             Screen current = event.getCurrentScreen();
-            if (isReturnable(current)) {
+            boolean fromLoop = current instanceof HungryLoopScreen
+                    || (current == null && now() - loopClosedAt <= ADOPT_WINDOW);
+            if (fromLoop) {
+                // Switching loops from a tab: the server closes one loop menu and opens the next, so
+                // the screen they were all opened from stays the one to go back to.
+                loopClosedAt = Long.MIN_VALUE / 2;
+            } else if (isReturnable(current)) {
                 parent = current;
             } else if (current == null && lastClosed != null && now() - lastClosedAt <= ADOPT_WINDOW) {
                 parent = lastClosed;
@@ -61,9 +70,32 @@ public final class LoopOverlay {
         }
     }
 
+    private static double keepX, keepY;
+    private static long keepAt = Long.MIN_VALUE / 2;
+
+    /** Remember the cursor before a tab switch; the new screen recentres it. */
+    static void keepCursor() {
+        var mh = Minecraft.getInstance().mouseHandler;
+        keepX = mh.xpos();
+        keepY = mh.ypos();
+        keepAt = now();
+    }
+
+    @SubscribeEvent
+    static void onInit(ScreenEvent.Init.Post event) {
+        if (!(event.getScreen() instanceof HungryLoopScreen) || now() - keepAt > ADOPT_WINDOW) return;
+        keepAt = Long.MIN_VALUE / 2;
+        Minecraft mc = Minecraft.getInstance();
+        mc.mouseHandler.xpos = keepX;
+        mc.mouseHandler.ypos = keepY;
+        org.lwjgl.glfw.GLFW.glfwSetCursorPos(mc.getWindow().getWindow(), keepX, keepY);
+    }
+
     @SubscribeEvent
     static void onClosing(ScreenEvent.Closing event) {
-        if (isReturnable(event.getScreen())) {
+        if (event.getScreen() instanceof HungryLoopScreen) {
+            loopClosedAt = now();
+        } else if (isReturnable(event.getScreen())) {
             lastClosed = event.getScreen();
             lastClosedAt = now();
         }
@@ -112,6 +144,7 @@ public final class LoopOverlay {
     static void returnToParent() {
         Screen back = parent;
         parent = null;
+        loopClosedAt = Long.MIN_VALUE / 2;
         Minecraft mc = Minecraft.getInstance();
         if (back == null || mc.player == null) return;
 

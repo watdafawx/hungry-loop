@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.0
+
+- The loop screen now has a tab for each loop you wear, down its left edge. Click a tab to manage that loop without closing the screen; closing still takes you back to the inventory or Curios screen you came from, and the mouse stays where it was. Hover a tab to see its slots. Shown when you wear two or more loops (up to 8 tabs).
+
 ## 0.10.1
 
 - Fixed: the game refused to start with Accessories older than 1.1.0-beta.50 ("only supports accessories 1.1.0-beta.50 or above"). Accessories stays optional and any version is accepted now; the Accessories integration turns on for 1.1.0-beta.48 and newer, and older versions fall back to plain Curios behaviour.

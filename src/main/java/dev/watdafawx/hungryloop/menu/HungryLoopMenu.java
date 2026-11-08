@@ -58,6 +58,12 @@ public class HungryLoopMenu extends AbstractContainerMenu {
     /** Toggle the cosmetic render of contained item {@code id - BUTTON_RENDER_BASE}. */
     public static final int BUTTON_RENDER_BASE = 200;
 
+    /** Switch to the worn loop at {@code id - BUTTON_SWITCH_BASE} in {@link #equippedLoops}. */
+    public static final int BUTTON_SWITCH_BASE = 300;
+
+    /** Most tabs the screen can stack down its left edge. */
+    public static final int MAX_TABS = 8;
+
     private final Player player;
     private final LoopLocator locator;
     private final SimpleContainer contents;
@@ -221,6 +227,19 @@ public class HungryLoopMenu extends AbstractContainerMenu {
 
         LoopContents data = loop.getOrDefault(ModDataComponents.LOOP_CONTENTS.get(), LoopContents.DEFAULT);
 
+        if (buttonId >= BUTTON_SWITCH_BASE) {
+            List<LoopLocator> worn = equippedLoops(who);
+            int i = buttonId - BUTTON_SWITCH_BASE;
+            if (i >= worn.size() || worn.get(i).equals(locator)) return false;
+            if (who instanceof ServerPlayer sp) {
+                LoopLocator target = worn.get(i);
+                // Defer: opening a menu from inside button handling upsets the current one. Opening
+                // closes this menu first, which persists its contents.
+                sp.server.execute(() -> open(sp, target));
+            }
+            return true;
+        }
+
         if (buttonId == BUTTON_RENDER_SELF || buttonId >= BUTTON_RENDER_BASE) {
             LoopContents toggled = buttonId == BUTTON_RENDER_SELF
                     ? data.toggleSelfRender()
@@ -307,6 +326,29 @@ public class HungryLoopMenu extends AbstractContainerMenu {
         MenuProvider provider = new SimpleMenuProvider(
                 (id, inv, p) -> new HungryLoopMenu(id, inv, locator), loop.getHoverName());
         player.openMenu(provider, locator::encode);
+    }
+
+    /**
+     * Every loop worn in a curio slot, in a stable order (slot type, then index). Client and server
+     * both compute it, so a tab's position is the button id the screen sends.
+     */
+    public static List<LoopLocator> equippedLoops(Player who) {
+        return CuriosApi.getCuriosInventory(who)
+                .map(h -> h.findCurios(s -> s.getItem() instanceof HungryLoopItem).stream()
+                        .map(r -> LoopLocator.curio(r.slotContext().identifier(), r.slotContext().index()))
+                        .sorted(java.util.Comparator.comparing(LoopLocator::curioId).thenComparingInt(LoopLocator::index))
+                        .limit(MAX_TABS)
+                        .toList())
+                .orElse(List.of());
+    }
+
+    public LoopLocator locator() {
+        return locator;
+    }
+
+    /** The stack behind {@code loc} as this player sees it (client or server). */
+    public ItemStack loopAt(LoopLocator loc) {
+        return loc.resolve(player);
     }
 
     public Container contentsContainer() {

@@ -25,6 +25,9 @@
   "hungryloop.slot.locked": "Slot %s — locked",
   "hungryloop.slot.cost": "%s XP levels to unlock",
   "hungryloop.slot.click": "Click to unlock",
+  "hungryloop.tab.title": "Loop %s",
+  "hungryloop.tab.click": "Click to manage",
+  "hungryloop.tab.current": "Open now",
 
   "key.categories.hungryloop": "The Hungry Loop",
   "key.hungryloop.open": "Open the Hungry Loop",

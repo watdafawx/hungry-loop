@@ -1,6 +1,7 @@
 package dev.watdafawx.hungryloop.client;
 
 import dev.watdafawx.hungryloop.component.LoopContents;
+import dev.watdafawx.hungryloop.item.HungryLoopItem;
 import dev.watdafawx.hungryloop.menu.HungryLoopMenu;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
@@ -83,6 +84,10 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
             if (sx - 16 < 0 || sy - 16 < LoopFrame.HEADER_H + 4 || sx + 32 > COL_X - 2 || sy + 32 > imageHeight) {
                 out.add("ring slot " + i + " (with eye/cost label) at " + sx + "," + sy + " leaves the ring area");
             }
+        }
+        refreshTabs();
+        if (!tabs.isEmpty() && (tabX() < 0 || tabY(tabs.size() - 1) + TAB_H > topPos + imageHeight)) {
+            out.add("loop tabs leave the screen (left " + tabX() + ")");
         }
         if (feedX + feedW > leftPos + imageWidth || feedY + feedH > topPos + imageHeight) out.add("feed button outside panel");
         for (Slot slot : menu.slots) {
@@ -239,6 +244,77 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
                 well(g, x + slot.x, y + slot.y, WELL, withAlpha(frame.edge(), 0x60));
             }
         }
+
+        drawTabs(g, mouseX, mouseY);
+    }
+
+    // --- loop tabs -----------------------------------------------------------------------------
+
+    private static final int TAB_W = 24;
+    private static final int TAB_H = 22;
+    /** Tabs overlap the panel's left edge by this much, like the creative inventory's. */
+    private static final int TAB_OVERLAP = 3;
+    private static final int TAB_TOP = 22;
+
+    private java.util.List<dev.watdafawx.hungryloop.menu.LoopLocator> tabs = java.util.List.of();
+
+    /** Worn loops, refreshed each frame. Hidden when this is the only loop there is to manage. */
+    private void refreshTabs() {
+        if (minecraft == null || minecraft.player == null) return;
+        var worn = HungryLoopMenu.equippedLoops(minecraft.player);
+        boolean onlyThis = worn.isEmpty() || (worn.size() == 1 && worn.get(0).equals(menu.locator()));
+        tabs = onlyThis ? java.util.List.of() : worn;
+    }
+
+    private int tabX() {
+        return leftPos - TAB_W + TAB_OVERLAP;
+    }
+
+    private int tabY(int i) {
+        return topPos + TAB_TOP + i * (TAB_H + 2);
+    }
+
+    private int tabAt(double mx, double my) {
+        for (int i = 0; i < tabs.size(); i++) {
+            if (mx >= tabX() && mx < tabX() + TAB_W && my >= tabY(i) && my < tabY(i) + TAB_H) return i;
+        }
+        return -1;
+    }
+
+    private void drawTabs(GuiGraphics g, int mouseX, int mouseY) {
+        refreshTabs();
+        int hover = tabAt(mouseX, mouseY);
+        for (int i = 0; i < tabs.size(); i++) {
+            var loc = tabs.get(i);
+            net.minecraft.world.item.ItemStack stack = menu.loopAt(loc);
+            boolean current = loc.equals(menu.locator());
+            LoopFrame.Palette pal = LoopFrame.Palette.of(HungryLoopItem.contentsOf(stack).shiny());
+            int tx = tabX(), ty = tabY(i);
+            g.fill(tx - 1, ty - 1, tx + TAB_W, ty + TAB_H + 1, 0xFF000000);
+            g.fillGradient(tx, ty, tx + TAB_W, ty + TAB_H,
+                    current ? PANEL_TOP : 0xFF120D1A, current ? PANEL_BOTTOM : 0xFF0C0912);
+            // outline, the current tab in the full accent and open towards the panel
+            int edge = current ? pal.edgeLight() : hover == i ? pal.edge() : withAlpha(pal.edge(), 0x80);
+            g.fill(tx, ty, tx + TAB_W - TAB_OVERLAP, ty + 1, edge);
+            g.fill(tx, ty + TAB_H - 1, tx + TAB_W - TAB_OVERLAP, ty + TAB_H, edge);
+            g.fill(tx, ty, tx + 1, ty + TAB_H, edge);
+            if (current) {
+                g.fill(tx + TAB_W - TAB_OVERLAP, ty + 1, tx + TAB_W, ty + TAB_H - 1, PANEL_TOP);
+            }
+            g.renderItem(stack, tx + 4, ty + 3);
+        }
+    }
+
+    private void tabTooltip(GuiGraphics g, int tab, int mouseX, int mouseY) {
+        LoopContents data = HungryLoopItem.contentsOf(menu.loopAt(tabs.get(tab)));
+        long used = data.items().stream().filter(s -> !s.isEmpty()).count();
+        boolean current = tabs.get(tab).equals(menu.locator());
+        g.renderComponentTooltip(font, List.of(
+                Component.translatable("hungryloop.tab.title", tab + 1).withStyle(ChatFormatting.GOLD),
+                Component.translatable("hungryloop.tooltip.slots", used, data.totalSlots()).withStyle(ChatFormatting.GRAY),
+                Component.translatable(current ? "hungryloop.tab.current" : "hungryloop.tab.click")
+                        .withStyle(ChatFormatting.DARK_GRAY)
+        ), mouseX, mouseY);
     }
 
     // --- hit testing ---------------------------------------------------------------------------
@@ -268,6 +344,12 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button == 0) {
+            int tab = tabAt(mouseX, mouseY);
+            if (tab >= 0) {
+                if (!tabs.get(tab).equals(menu.locator())) LoopOverlay.keepCursor();
+                if (!tabs.get(tab).equals(menu.locator())) send(HungryLoopMenu.BUTTON_SWITCH_BASE + tab);
+                return true;
+            }
             int eye = eyeButtonAt(mouseX, mouseY);
             if (eye >= 0) {
                 send(eye);
@@ -345,6 +427,12 @@ public class HungryLoopScreen extends AbstractContainerScreen<HungryLoopMenu> {
     @Override
     protected void renderTooltip(GuiGraphics g, int mouseX, int mouseY) {
         LoopContents data = menu.loopData();
+
+        int tab = tabAt(mouseX, mouseY);
+        if (tab >= 0) {
+            tabTooltip(g, tab, mouseX, mouseY);
+            return;
+        }
 
         int locked = hoveredLockedSlot(mouseX, mouseY);
         if (locked >= 0) {
