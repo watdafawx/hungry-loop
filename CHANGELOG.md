@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.1
+
+- Fixed: relics leveled up from inside the loop screen (through Relics' own screen) dropped back to their old levels a couple of seconds later. Edits made to an item in the loop screen now reach the worn copy too.
+
 ## 0.11.0
 
 - The loop screen now has a tab for each loop you wear, down its left edge. Click a tab to manage that loop without closing the screen; closing still takes you back to the inventory or Curios screen you came from, and the mouse stays where it was. Hover a tab to see its slots. Shown when you wear two or more loops (up to 8 tabs).

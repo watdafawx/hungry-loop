@@ -12,6 +12,8 @@ import dev.watdafawx.hungryloop.curio.LoopSlotMirror;
 import dev.watdafawx.hungryloop.integration.relics.RelicsTestHooks;
 import dev.watdafawx.hungryloop.integration.relics.RelicsUnlock;
 import dev.watdafawx.hungryloop.item.HungryLoopItem;
+import dev.watdafawx.hungryloop.menu.HungryLoopMenu;
+import dev.watdafawx.hungryloop.menu.LoopLocator;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -238,6 +240,58 @@ public final class LoopGameTests {
         List<ItemStack> after = contents(loop);
         helper.assertFalse(after.isEmpty(), "loop lost its relic");
         helper.assertTrue(RelicsTestHooks.isUnlocked(p, after.get(0)), "relic progress made while worn was lost on unequip");
+        helper.succeed();
+    }
+
+    /**
+     * Leveling a relic from its Relics description screen while it sits in the loop menu. Relics'
+     * PacketAbilityTweak mutates {@code containerMenu.getSlot(n).getItem()} in place and then calls
+     * {@code slot.set(sameStack)}. That edit has to reach the stored item and the worn mirror, or the
+     * mirror's stale data is written back over it a couple of seconds later.
+     */
+    /** What {@link HungryLoopMenu#open} does; a FakePlayer's openMenu is a no-op. */
+    private static void openMenu(ServerPlayer p) {
+        LoopSlotMirror.writeBackNow(p);
+        p.containerMenu = new HungryLoopMenu(1, p.getInventory(), LoopLocator.curio(HungryLoopCurio.LOOP_SLOT, 0));
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 300)
+    public static void relicLeveledInLoopMenuSticks(GameTestHelper helper) {
+        if (!ModList.get().isLoaded("relics") || RelicsTestHooks.relicItems(1).isEmpty()) {
+            helper.succeed();
+            return;
+        }
+        ServerPlayer p = player(helper, "menulevel");
+        ICuriosItemHandler h = curios(helper, p);
+        EventHooks.firePlayerLoggedIn(p);
+        Item relic = RelicsTestHooks.relicItems(1).get(0);
+
+        h.setEquippedCurio(HungryLoopCurio.LOOP_SLOT, 0, loopOf(4, List.of(new ItemStack(relic))));
+        tick(p, 10);
+        helper.assertFalse(RelicsTestHooks.isUnlocked(p, contents(wornLoop(h)).get(0)), "precondition: relic already unlocked");
+
+        openMenu(p);
+        tick(p, 5);
+
+        // What PacketAbilityTweak does on the server.
+        var slot = p.containerMenu.getSlot(0);
+        ItemStack inMenu = slot.getItem();
+        helper.assertTrue(inMenu.is(relic), "menu slot 0 holds " + inMenu);
+        RelicsUnlock.unlockAll(p, inMenu);
+        slot.set(inMenu);
+
+        tick(p, 50); // write-back interval passes with the menu still open
+        p.doCloseContainer();
+        tick(p, 100);
+
+        helper.assertTrue(RelicsTestHooks.isUnlocked(p, contents(wornLoop(h)).get(0)), "stored relic lost its levels");
+        ItemStack mirror = h.findFirstCurio(s -> LoopSlotMirror.isMirror(s) && s.is(relic))
+                .map(r -> r.stack()).orElse(ItemStack.EMPTY);
+        helper.assertTrue(RelicsTestHooks.isUnlocked(p, mirror), "worn mirror never got the levels");
+
+        openMenu(p);
+        helper.assertTrue(RelicsTestHooks.isUnlocked(p, p.containerMenu.getSlot(0).getItem()), "reopened menu shows relic at 0");
+        p.doCloseContainer();
         helper.succeed();
     }
 }

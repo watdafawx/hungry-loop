@@ -5,6 +5,7 @@ import dev.watdafawx.hungryloop.component.LoopContents;
 import dev.watdafawx.hungryloop.component.ModDataComponents;
 import dev.watdafawx.hungryloop.curio.LoopSlotMirror;
 import dev.watdafawx.hungryloop.item.HungryLoopItem;
+import net.minecraft.core.NonNullList;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
@@ -22,7 +23,9 @@ import net.minecraft.world.item.Items;
 import top.theillusivec4.curios.api.CuriosApi;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Menu over one Hungry Loop's sub-slots. The loop is found by {@link LoopLocator}; its
@@ -68,19 +71,32 @@ public class HungryLoopMenu extends AbstractContainerMenu {
     private final LoopLocator locator;
     private final SimpleContainer contents;
 
+    /**
+     * What each sub-slot held when last loaded or persisted. A slot that still matches it was not
+     * edited through this menu, so {@link #persist} keeps the stored item there - which may have
+     * moved on meanwhile, as the worn mirror's live data (relic XP, ...) is written back into it.
+     */
+    private final NonNullList<ItemStack> baseline = NonNullList.withSize(MAX_LOOP_SLOTS, ItemStack.EMPTY);
+
     public HungryLoopMenu(int windowId, Inventory playerInv, RegistryFriendlyByteBuf extraData) {
         this(windowId, playerInv, LoopLocator.decode(extraData));
     }
 
-    HungryLoopMenu(int windowId, Inventory playerInv, LoopLocator locator) {
+    public HungryLoopMenu(int windowId, Inventory playerInv, LoopLocator locator) {
         super(ModMenus.HUNGRY_LOOP.get(), windowId);
         this.player = playerInv.player;
         this.locator = locator;
         this.contents = new SimpleContainer(MAX_LOOP_SLOTS);
 
+        // Copies, never the component's own stacks. Other mods edit a menu slot's stack in place -
+        // Relics' level-up packet mutates getSlot(n).getItem() and then set()s the same object back -
+        // and with shared stacks that edit silently rewrote the stored component too, so persist()
+        // compared the edit against itself, saw no change, and never pushed it to the worn mirror.
+        // The mirror's stale data was then written back over it: every level gained was lost.
         var slotList = loopData().toSlotList();
         for (int i = 0; i < Math.min(MAX_LOOP_SLOTS, slotList.size()); i++) {
-            contents.setItem(i, slotList.get(i));
+            contents.setItem(i, slotList.get(i).copy());
+            baseline.set(i, slotList.get(i).copy());
         }
         contents.addListener(c -> persist());
 
@@ -193,15 +209,27 @@ public class HungryLoopMenu extends AbstractContainerMenu {
         if (!(loop.getItem() instanceof HungryLoopItem)) return;
 
         LoopContents current = loop.getOrDefault(ModDataComponents.LOOP_CONTENTS.get(), LoopContents.DEFAULT);
+        List<ItemStack> stored = current.items();
         List<ItemStack> items = new ArrayList<>(MAX_LOOP_SLOTS);
+        Set<Integer> edited = new HashSet<>();
         for (int i = 0; i < MAX_LOOP_SLOTS; i++) {
-            items.add(contents.getItem(i));
+            ItemStack inMenu = contents.getItem(i);
+            if (ItemStack.matches(inMenu, baseline.get(i))) {
+                items.add(i < stored.size() ? stored.get(i) : ItemStack.EMPTY);
+            } else {
+                items.add(inMenu.copy());
+                baseline.set(i, inMenu.copy());
+                edited.add(i);
+            }
         }
-        LoopContents next = current.withItems(items);
-        if (next.equals(current)) return; // the container listener fires several times per edit
-        loop.set(ModDataComponents.LOOP_CONTENTS.get(), next);
+        if (edited.isEmpty()) return; // the container listener fires several times per edit
+        loop.set(ModDataComponents.LOOP_CONTENTS.get(), current.withItems(items));
         locator.afterChange(player, loop);
-        LoopSlotMirror.syncIfServer(player);
+        if (player instanceof ServerPlayer sp) {
+            // The worn mirrors of these items are now stale; replace them rather than keep them.
+            LoopSlotMirror.markEdited(sp, loop, edited);
+            LoopSlotMirror.sync(sp);
+        }
     }
 
     @Override

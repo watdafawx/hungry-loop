@@ -85,8 +85,16 @@ public final class LoopSlotMirror {
      */
     private static final int WRITE_BACK_INTERVAL = 40;
 
+    /**
+     * Contained items edited from outside the mirror since the last reconcile - through the loop menu,
+     * e.g. leveled in Relics' screen - keyed by the loop stack (identity) they sit in. Normally the
+     * mirror is the live copy and the stored item trails it; for these the stored item is newer, so
+     * the mirror is replaced instead of kept, or the next write-back would undo the edit.
+     */
+    private static final Map<UUID, Map<ItemStack, Set<Integer>>> EDITED = new ConcurrentHashMap<>();
+
     /** One contained item to mirror: where it lives in which worn loop, so its mirror can write back. */
-    private record Want(ItemStack stack, boolean render, ItemStack loop, int index) {}
+    private record Want(ItemStack stack, boolean render, ItemStack loop, int index, boolean edited) {}
 
     /** A mirror that stayed in place this pass, paired with the stored item it copies. */
     private record Kept(ItemStack mirror, Want want) {}
@@ -187,6 +195,13 @@ public final class LoopSlotMirror {
     }
 
     /** Reconcile now and copy every mirror's live data back into its loop (see {@link #writeBack}). */
+    /** The stored items at {@code indices} in {@code loop} are newer than their mirrors. */
+    public static void markEdited(ServerPlayer player, ItemStack loop, Set<Integer> indices) {
+        EDITED.computeIfAbsent(player.getUUID(), u -> new java.util.IdentityHashMap<>())
+                .computeIfAbsent(loop, l -> new java.util.HashSet<>())
+                .addAll(indices);
+    }
+
     public static void writeBackNow(ServerPlayer player) {
         if (!RECONCILING.add(player.getUUID())) return;
         try {
@@ -253,6 +268,9 @@ public final class LoopSlotMirror {
         // reconcile that clears everything and the next that refills it is exactly the flicker.
         if (loops.isEmpty()) return;
 
+        Map<ItemStack, Set<Integer>> edited = EDITED.remove(player.getUUID());
+        if (edited == null) edited = Map.of();
+
         Map<String, List<Want>> wanted = new LinkedHashMap<>();
         for (SlotResult worn : loops) {
             LoopContents data = worn.stack()
@@ -270,13 +288,14 @@ public final class LoopSlotMirror {
                             worn.slotContext().index(), data.selfRenders()));
 
             List<ItemStack> items = data.items();
+            Set<Integer> editedHere = edited.getOrDefault(worn.stack(), Set.of());
             for (int i = 0; i < items.size(); i++) {
                 ItemStack contained = items.get(i);
                 // Skip empties and nested loops - a mirrored loop would be picked up as a worn loop
                 // on the next pass and mirror its own contents, spawning phantom copies.
                 if (contained.isEmpty() || contained.getItem() instanceof HungryLoopItem) continue;
                 wanted.computeIfAbsent(ContentForwarding.resolveSlot(contained, player), k -> new ArrayList<>())
-                        .add(new Want(contained, loopVisible && data.rendersItem(i), worn.stack(), i));
+                        .add(new Want(contained, loopVisible && data.rendersItem(i), worn.stack(), i, editedHere.contains(i)));
             }
         }
 
@@ -315,6 +334,7 @@ public final class LoopSlotMirror {
 
     /** Wipe every mirror from every curio slot - used when the last loop is unequipped. */
     private static void purgeAllMirrors(ServerPlayer player) {
+        EDITED.remove(player.getUUID());
         ICuriosItemHandler handler = CuriosApi.getCuriosInventory(player).orElse(null);
         if (handler == null) return;
         handler.getCurios().forEach((type, sh) -> {
@@ -362,6 +382,12 @@ public final class LoopSlotMirror {
             for (int w = 0; w < pending.size(); w++) {
                 if (ItemStack.isSameItem(cur, pending.get(w).stack())) {
                     Want want = pending.remove(w);
+                    if (want.edited()) {
+                        // Same slot, fresh data: the stored copy was edited and is the newer one.
+                        cur = mirrorCopy(want.stack());
+                        stacks.setStackInSlot(firstMirror + p, cur);
+                        changed = true;
+                    }
                     kept.add(new Kept(cur, want));
                     setRender(player, stacksHandler, type, firstMirror + p, want.render());
                     filled[p] = true;
